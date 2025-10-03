@@ -1,0 +1,173 @@
+using System;
+
+// 1. Базовый интерфейс
+public interface ITransport
+{
+    void Move();
+    void FuelUp();
+}
+
+// 2. Конкретные классы транспорта
+public class Car : ITransport
+{
+    public string Model { get; }
+    public int Speed { get; }
+
+    public Car(string model, int speed)
+    {
+        Model = model;
+        Speed = speed;
+    }
+
+    public void Move()
+    {
+        Console.WriteLine($"Автомобиль {Model} движется со скоростью {Speed} км/ч.");
+    }
+
+    public void FuelUp()
+    {
+        Console.WriteLine($"Автомобиль {Model} заправлен бензином.");
+    }
+}
+
+public class Motorcycle : ITransport
+{
+    public string Model { get; }
+    public int Speed { get; }
+
+    public Motorcycle(string model, int speed)
+    {
+        Model = model;
+        Speed = speed;
+    }
+
+    public void Move()
+    {
+        Console.WriteLine($"Мотоцикл {Model} мчится со скоростью {Speed} км/ч.");
+    }
+
+    public void FuelUp()
+    {
+        Console.WriteLine($"Мотоцикл {Model} заправлен бензином.");
+    }
+}
+
+public class Plane : ITransport
+{
+    public string Model { get; }
+    public int Speed { get; }
+
+    public Plane(string model, int speed)
+    {
+        Model = model;
+        Speed = speed;
+    }
+
+    public void Move()
+    {
+        Console.WriteLine($"Самолет {Model} летит со скоростью {Speed} км/ч.");
+    }
+
+    public void FuelUp()
+    {
+        Console.WriteLine($"Самолет {Model} заправлен авиационным топливом.");
+    }
+}
+
+// Новый транспорт – велосипед
+public class Bicycle : ITransport
+{
+    public string Model { get; }
+    public int Speed { get; }
+
+    public Bicycle(string model, int speed)
+    {
+        Model = model;
+        Speed = speed;
+    }
+
+    public void Move()
+    {
+        Console.WriteLine($"Велосипед {Model} едет со скоростью {Speed} км/ч.");
+    }
+
+    public void FuelUp()
+    {
+        Console.WriteLine($"Велосипед {Model} не требует топлива – достаточно подкрутить педали!");
+    }
+}
+
+// 3. Абстрактная фабрика
+public abstract class TransportFactory
+{
+    public abstract ITransport CreateTransport(string model, int speed);
+}
+
+// 4. Конкретные фабрики
+public class CarFactory : TransportFactory
+{
+    public override ITransport CreateTransport(string model, int speed)
+    {
+        return new Car(model, speed);
+    }
+}
+
+public class MotorcycleFactory : TransportFactory
+{
+    public override ITransport CreateTransport(string model, int speed)
+    {
+        return new Motorcycle(model, speed);
+    }
+}
+
+public class PlaneFactory : TransportFactory
+{
+    public override ITransport CreateTransport(string model, int speed)
+    {
+        return new Plane(model, speed);
+    }
+}
+
+public class BicycleFactory : TransportFactory
+{
+    public override ITransport CreateTransport(string model, int speed)
+    {
+        return new Bicycle(model, speed);
+    }
+}
+
+// 5. Основная программа
+class Program
+{
+    static void Main()
+    {
+        Console.WriteLine("Выберите тип транспорта: Car, Motorcycle, Plane, Bicycle");
+        string choice = Console.ReadLine();
+
+        Console.Write("Введите модель транспорта: ");
+        string model = Console.ReadLine();
+
+        Console.Write("Введите скорость транспорта (км/ч): ");
+        int speed = int.Parse(Console.ReadLine());
+
+        TransportFactory factory = choice.ToLower() switch
+        {
+            "car" => new CarFactory(),
+            "motorcycle" => new MotorcycleFactory(),
+            "plane" => new PlaneFactory(),
+            "bicycle" => new BicycleFactory(),
+            _ => null
+        };
+
+        if (factory == null)
+        {
+            Console.WriteLine("Неизвестный тип транспорта.");
+            return;
+        }
+
+        ITransport transport = factory.CreateTransport(model, speed);
+
+        transport.Move();
+        transport.FuelUp();
+    }
+}
