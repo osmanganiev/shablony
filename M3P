@@ -1,0 +1,176 @@
+using System;
+using System.Collections.Generic;
+
+// Класс товара
+public class Product
+{
+    public string Name { get; }
+    public double Price { get; }
+
+    public Product(string name, double price)
+    {
+        Name = name;
+        Price = price;
+    }
+}
+
+// Класс позиции заказа
+public class OrderItem
+{
+    public Product Product { get; }
+    public int Quantity { get; }
+
+    public OrderItem(Product product, int quantity)
+    {
+        Product = product;
+        Quantity = quantity;
+    }
+
+    public double GetTotalPrice() => Product.Price * Quantity;
+}
+
+// Класс заказа
+public class Order
+{
+    private List<OrderItem> _items = new List<OrderItem>();
+    public IReadOnlyList<OrderItem> Items => _items.AsReadOnly();
+
+    public void AddItem(Product product, int quantity)
+    {
+        _items.Add(new OrderItem(product, quantity));
+    }
+
+    public double CalculateTotal(IDiscountCalculator discountCalculator)
+    {
+        double total = 0;
+        foreach (var item in _items)
+            total += item.GetTotalPrice();
+
+        return discountCalculator.ApplyDiscount(total);
+    }
+}
+public interface IPayment
+{
+    void ProcessPayment(double amount);
+}
+
+public class CreditCardPayment : IPayment
+{
+    public void ProcessPayment(double amount)
+    {
+        Console.WriteLine($"Оплата {amount} по кредитной карте.");
+    }
+}
+
+public class PayPalPayment : IPayment
+{
+    public void ProcessPayment(double amount)
+    {
+        Console.WriteLine($"Оплата {amount} через PayPal.");
+    }
+}
+
+public class BankTransferPayment : IPayment
+{
+    public void ProcessPayment(double amount)
+    {
+        Console.WriteLine($"Оплата {amount} банковским переводом.");
+    }
+}
+public interface IDelivery
+{
+    void DeliverOrder(Order order);
+}
+
+public class CourierDelivery : IDelivery
+{
+    public void DeliverOrder(Order order)
+    {
+        Console.WriteLine("Заказ доставлен курьером.");
+    }
+}
+
+public class PostDelivery : IDelivery
+{
+    public void DeliverOrder(Order order)
+    {
+        Console.WriteLine("Заказ отправлен почтой.");
+    }
+}
+
+public class PickUpPointDelivery : IDelivery
+{
+    public void DeliverOrder(Order order)
+    {
+        Console.WriteLine("Заказ доступен для самовывоза.");
+    }
+}
+public interface INotification
+{
+    void SendNotification(string message);
+}
+
+public class EmailNotification : INotification
+{
+    public void SendNotification(string message)
+    {
+        Console.WriteLine($"Email уведомление: {message}");
+    }
+}
+
+public class SmsNotification : INotification
+{
+    public void SendNotification(string message)
+    {
+        Console.WriteLine($"SMS уведомление: {message}");
+    }
+}
+public interface IDiscountCalculator
+{
+    double ApplyDiscount(double total);
+}
+
+// Без скидки
+public class NoDiscount : IDiscountCalculator
+{
+    public double ApplyDiscount(double total) => total;
+}
+
+// Скидка 10%
+public class TenPercentDiscount : IDiscountCalculator
+{
+    public double ApplyDiscount(double total) => total * 0.9;
+}
+
+// Скидка 20% для VIP
+public class VipDiscount : IDiscountCalculator
+{
+    public double ApplyDiscount(double total) => total * 0.8;
+}
+class Program
+{
+    static void Main(string[] args)
+    {
+        // Создаем заказ
+        var order = new Order();
+        order.AddItem(new Product("Ноутбук", 1000), 1);
+        order.AddItem(new Product("Мышка", 50), 2);
+
+        // Выбираем скидку
+        IDiscountCalculator discountCalculator = new TenPercentDiscount();
+        double total = order.CalculateTotal(discountCalculator);
+        Console.WriteLine($"Итого со скидкой: {total}");
+
+        // Выбираем оплату
+        IPayment payment = new CreditCardPayment();
+        payment.ProcessPayment(total);
+
+        // Выбираем доставку
+        IDelivery delivery = new CourierDelivery();
+        delivery.DeliverOrder(order);
+
+        // Отправляем уведомление
+        INotification notification = new EmailNotification();
+        notification.SendNotification("Ваш заказ оформлен и будет доставлен!");
+    }
+}
