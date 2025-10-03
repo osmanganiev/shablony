@@ -1,0 +1,257 @@
+using System;
+
+// 1. Базовый интерфейс транспорта
+public interface IVehicle
+{
+    void Drive();
+    void Refuel();
+}
+
+// 2. Конкретные классы транспорта
+
+public class Car : IVehicle
+{
+    public string Brand { get; }
+    public string Model { get; }
+    public string FuelType { get; }
+
+    public Car(string brand, string model, string fuelType)
+    {
+        Brand = brand;
+        Model = model;
+        FuelType = fuelType;
+    }
+
+    public void Drive()
+    {
+        Console.WriteLine($"Автомобиль {Brand} {Model} едет по дороге.");
+    }
+
+    public void Refuel()
+    {
+        Console.WriteLine($"Заправка автомобиля {Brand} {Model} топливом: {FuelType}.");
+    }
+}
+
+public class Motorcycle : IVehicle
+{
+    public string Type { get; }
+    public int EngineVolume { get; }
+
+    public Motorcycle(string type, int engineVolume)
+    {
+        Type = type;
+        EngineVolume = engineVolume;
+    }
+
+    public void Drive()
+    {
+        Console.WriteLine($"{Type} мотоцикл с двигателем {EngineVolume}cc мчится по трассе.");
+    }
+
+    public void Refuel()
+    {
+        Console.WriteLine($"Заправка {Type} мотоцикла бензином.");
+    }
+}
+
+public class Truck : IVehicle
+{
+    public double Capacity { get; }
+    public int Axles { get; }
+
+    public Truck(double capacity, int axles)
+    {
+        Capacity = capacity;
+        Axles = axles;
+    }
+
+    public void Drive()
+    {
+        Console.WriteLine($"Грузовик с грузоподъемностью {Capacity} т и {Axles} осями перевозит груз.");
+    }
+
+    public void Refuel()
+    {
+        Console.WriteLine("Заправка грузовика дизельным топливом.");
+    }
+}
+
+// Дополнительный новый транспорт – Автобус
+public class Bus : IVehicle
+{
+    public int Seats { get; }
+    public string Route { get; }
+
+    public Bus(int seats, string route)
+    {
+        Seats = seats;
+        Route = route;
+    }
+
+    public void Drive()
+    {
+        Console.WriteLine($"Автобус на маршруте {Route} перевозит {Seats} пассажиров.");
+    }
+
+    public void Refuel()
+    {
+        Console.WriteLine("Заправка автобуса дизельным топливом.");
+    }
+}
+
+// Дополнительный транспорт – Электросамокат
+public class Scooter : IVehicle
+{
+    public string Model { get; }
+    public int BatteryCapacity { get; }
+
+    public Scooter(string model, int batteryCapacity)
+    {
+        Model = model;
+        BatteryCapacity = batteryCapacity;
+    }
+
+    public void Drive()
+    {
+        Console.WriteLine($"Электросамокат {Model} с батареей {BatteryCapacity}Wh едет по велодорожке.");
+    }
+
+    public void Refuel()
+    {
+        Console.WriteLine($"Зарядка электросамоката {Model}.");
+    }
+}
+
+// 3. Абстрактная фабрика
+public abstract class VehicleFactory
+{
+    public abstract IVehicle CreateVehicle();
+}
+
+// 4. Конкретные фабрики
+public class CarFactory : VehicleFactory
+{
+    private string _brand, _model, _fuelType;
+    public CarFactory(string brand, string model, string fuelType)
+    {
+        _brand = brand;
+        _model = model;
+        _fuelType = fuelType;
+    }
+    public override IVehicle CreateVehicle() => new Car(_brand, _model, _fuelType);
+}
+
+public class MotorcycleFactory : VehicleFactory
+{
+    private string _type;
+    private int _engineVolume;
+    public MotorcycleFactory(string type, int engineVolume)
+    {
+        _type = type;
+        _engineVolume = engineVolume;
+    }
+    public override IVehicle CreateVehicle() => new Motorcycle(_type, _engineVolume);
+}
+
+public class TruckFactory : VehicleFactory
+{
+    private double _capacity;
+    private int _axles;
+    public TruckFactory(double capacity, int axles)
+    {
+        _capacity = capacity;
+        _axles = axles;
+    }
+    public override IVehicle CreateVehicle() => new Truck(_capacity, _axles);
+}
+
+public class BusFactory : VehicleFactory
+{
+    private int _seats;
+    private string _route;
+    public BusFactory(int seats, string route)
+    {
+        _seats = seats;
+        _route = route;
+    }
+    public override IVehicle CreateVehicle() => new Bus(_seats, _route);
+}
+
+public class ScooterFactory : VehicleFactory
+{
+    private string _model;
+    private int _batteryCapacity;
+    public ScooterFactory(string model, int batteryCapacity)
+    {
+        _model = model;
+        _batteryCapacity = batteryCapacity;
+    }
+    public override IVehicle CreateVehicle() => new Scooter(_model, _batteryCapacity);
+}
+
+// 5. Демонстрация
+class Program
+{
+    static void Main()
+    {
+        Console.WriteLine("Выберите тип транспорта: Car, Motorcycle, Truck, Bus, Scooter");
+        string choice = Console.ReadLine();
+
+        VehicleFactory factory = null;
+
+        switch (choice.ToLower())
+        {
+            case "car":
+                Console.Write("Введите марку: ");
+                string brand = Console.ReadLine();
+                Console.Write("Введите модель: ");
+                string model = Console.ReadLine();
+                Console.Write("Введите тип топлива: ");
+                string fuelType = Console.ReadLine();
+                factory = new CarFactory(brand, model, fuelType);
+                break;
+
+            case "motorcycle":
+                Console.Write("Введите тип мотоцикла: ");
+                string type = Console.ReadLine();
+                Console.Write("Введите объем двигателя: ");
+                int engineVolume = int.Parse(Console.ReadLine());
+                factory = new MotorcycleFactory(type, engineVolume);
+                break;
+
+            case "truck":
+                Console.Write("Введите грузоподъемность (тонн): ");
+                double capacity = double.Parse(Console.ReadLine());
+                Console.Write("Введите количество осей: ");
+                int axles = int.Parse(Console.ReadLine());
+                factory = new TruckFactory(capacity, axles);
+                break;
+
+            case "bus":
+                Console.Write("Введите количество мест: ");
+                int seats = int.Parse(Console.ReadLine());
+                Console.Write("Введите маршрут: ");
+                string route = Console.ReadLine();
+                factory = new BusFactory(seats, route);
+                break;
+
+            case "scooter":
+                Console.Write("Введите модель: ");
+                string scooterModel = Console.ReadLine();
+                Console.Write("Введите емкость батареи (Wh): ");
+                int battery = int.Parse(Console.ReadLine());
+                factory = new ScooterFactory(scooterModel, battery);
+                break;
+
+            default:
+                Console.WriteLine("Неизвестный тип транспорта.");
+                return;
+        }
+
+        // Создание транспорта через фабрику
+        IVehicle vehicle = factory.CreateVehicle();
+        vehicle.Drive();
+        vehicle.Refuel();
+    }
+}
