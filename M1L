@@ -1,0 +1,105 @@
+using System;
+using System.Collections.Generic;
+
+// Базовый класс
+abstract class Employee
+{
+    public string Name { get; set; }
+    public int EmpId { get; set; }
+    public string Position { get; set; }
+
+    public Employee(string name, int empId, string position)
+    {
+        Name = name;
+        EmpId = empId;
+        Position = position;
+    }
+
+    // Абстрактный метод расчёта зарплаты (реализуется в наследниках)
+    public abstract double CalculateSalary();
+
+    public override string ToString()
+    {
+        return $"{Position} {Name} (ID: {EmpId})";
+    }
+}
+
+// Класс Рабочий
+class Worker : Employee
+{
+    public double HourlyRate { get; set; }
+    public int HoursWorked { get; set; }
+
+    public Worker(string name, int empId, double hourlyRate, int hoursWorked)
+        : base(name, empId, "Worker")
+    {
+        HourlyRate = hourlyRate;
+        HoursWorked = hoursWorked;
+    }
+
+    public override double CalculateSalary()
+    {
+        return HourlyRate * HoursWorked;
+    }
+}
+
+// Класс Менеджер
+class Manager : Employee
+{
+    public double FixedSalary { get; set; }
+    public double Bonus { get; set; }
+
+    public Manager(string name, int empId, double fixedSalary, double bonus)
+        : base(name, empId, "Manager")
+    {
+        FixedSalary = fixedSalary;
+        Bonus = bonus;
+    }
+
+    public override double CalculateSalary()
+    {
+        return FixedSalary + Bonus;
+    }
+}
+
+// Система учёта сотрудников
+class EmployeeSystem
+{
+    private List<Employee> employees = new List<Employee>();
+
+    public void AddEmployee(Employee employee)
+    {
+        employees.Add(employee);
+    }
+
+    public void ShowSalaries()
+    {
+        Console.WriteLine("\nРасчёт зарплат сотрудников:");
+        foreach (var emp in employees)
+        {
+            Console.WriteLine($"{emp} → Зарплата: {emp.CalculateSalary()}₸");
+        }
+    }
+}
+
+// Тестирование
+class Program
+{
+    static void Main(string[] args)
+    {
+        EmployeeSystem system = new EmployeeSystem();
+
+        // Создание сотрудников
+        Worker w1 = new Worker("Иванов Иван", 1, 1500, 160);
+        Worker w2 = new Worker("Петров Петр", 2, 1800, 170);
+        Manager m1 = new Manager("Сидоров Сидор", 3, 250000, 50000);
+
+        // Добавляем сотрудников в систему
+        system.AddEmployee(w1);
+        system.AddEmployee(w2);
+        system.AddEmployee(m1);
+
+        // Вывод зарплат
+        system.ShowSalaries();
+    }
+}
