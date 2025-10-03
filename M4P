@@ -1,0 +1,96 @@
+using System;
+
+// 1. Интерфейс документа
+public interface IDocument
+{
+    void Open();
+}
+
+// 2. Конкретные документы
+public class Report : IDocument
+{
+    public void Open()
+    {
+        Console.WriteLine("Открыт документ: Отчет");
+    }
+}
+
+public class Resume : IDocument
+{
+    public void Open()
+    {
+        Console.WriteLine("Открыт документ: Резюме");
+    }
+}
+
+public class Letter : IDocument
+{
+    public void Open()
+    {
+        Console.WriteLine("Открыт документ: Письмо");
+    }
+}
+
+// Новый тип документа - Счет-фактура
+public class Invoice : IDocument
+{
+    public void Open()
+    {
+        Console.WriteLine("Открыт документ: Счет-фактура");
+    }
+}
+
+// 3. Абстрактный класс фабрики
+public abstract class DocumentCreator
+{
+    public abstract IDocument CreateDocument();
+}
+
+// 4. Конкретные фабрики
+public class ReportCreator : DocumentCreator
+{
+    public override IDocument CreateDocument() => new Report();
+}
+
+public class ResumeCreator : DocumentCreator
+{
+    public override IDocument CreateDocument() => new Resume();
+}
+
+public class LetterCreator : DocumentCreator
+{
+    public override IDocument CreateDocument() => new Letter();
+}
+
+public class InvoiceCreator : DocumentCreator
+{
+    public override IDocument CreateDocument() => new Invoice();
+}
+
+// 5. Основной класс
+class Program
+{
+    static void Main()
+    {
+        Console.WriteLine("Выберите тип документа: report, resume, letter, invoice");
+        string choice = Console.ReadLine()?.ToLower();
+
+        DocumentCreator creator = choice switch
+        {
+            "report" => new ReportCreator(),
+            "resume" => new ResumeCreator(),
+            "letter" => new LetterCreator(),
+            "invoice" => new InvoiceCreator(),
+            _ => null
+        };
+
+        if (creator == null)
+        {
+            Console.WriteLine("Неизвестный тип документа.");
+            return;
+        }
+
+        IDocument document = creator.CreateDocument();
+        document.Open();
+    }
+}
