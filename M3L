@@ -1,0 +1,132 @@
+public class Item
+{
+    public string Name { get; set; }
+    public double Price { get; set; }
+}
+
+public class Invoice
+{
+    public int Id { get; set; }
+    public List<Item> Items { get; set; } = new List<Item>();
+    public double TaxRate { get; set; }
+}
+
+// Класс для расчёта суммы
+public class InvoiceCalculator
+{
+    public double CalculateTotal(Invoice invoice)
+    {
+        double subTotal = 0;
+        foreach (var item in invoice.Items)
+        {
+            subTotal += item.Price;
+        }
+        return subTotal + (subTotal * invoice.TaxRate);
+    }
+}
+
+// Класс для сохранения в базу данных
+public class InvoiceRepository
+{
+    public void SaveToDatabase(Invoice invoice)
+    {
+        Console.WriteLine($"Счёт-фактура #{invoice.Id} сохранён в базу данных.");
+    }
+}
+public abstract class Customer
+{
+    public abstract double ApplyDiscount(double amount);
+}
+
+public class RegularCustomer : Customer
+{
+    public override double ApplyDiscount(double amount) => amount;
+}
+
+public class SilverCustomer : Customer
+{
+    public override double ApplyDiscount(double amount) => amount * 0.9;
+}
+
+public class GoldCustomer : Customer
+{
+    public override double ApplyDiscount(double amount) => amount * 0.8;
+}
+
+// Можно легко добавить новый класс без изменения DiscountCalculator
+public class PlatinumCustomer : Customer
+{
+    public override double ApplyDiscount(double amount) => amount * 0.7;
+}
+
+public class DiscountCalculator
+{
+    public double CalculateDiscount(Customer customer, double amount)
+    {
+        return customer.ApplyDiscount(amount);
+    }
+}
+public interface IWorker
+{
+    void Work();
+}
+
+public interface IEater
+{
+    void Eat();
+}
+
+public interface ISleeper
+{
+    void Sleep();
+}
+
+public class HumanWorker : IWorker, IEater, ISleeper
+{
+    public void Work() => Console.WriteLine("Человек работает");
+    public void Eat() => Console.WriteLine("Человек ест");
+    public void Sleep() => Console.WriteLine("Человек спит");
+}
+
+public class RobotWorker : IWorker
+{
+    public void Work() => Console.WriteLine("Робот работает");
+}
+// Абстракция
+public interface IMessageService
+{
+    void Send(string message);
+}
+
+// Реализация Email
+public class EmailService : IMessageService
+{
+    public void Send(string message)
+    {
+        Console.WriteLine($"Отправка Email: {message}");
+    }
+}
+
+// Можно добавить другие реализации (SMS, Push и т.д.)
+public class SmsService : IMessageService
+{
+    public void Send(string message)
+    {
+        Console.WriteLine($"Отправка SMS: {message}");
+    }
+}
+
+public class Notification
+{
+    private readonly IMessageService _messageService;
+
+    public Notification(IMessageService messageService)
+    {
+        _messageService = messageService;
+    }
+
+    public void Send(string message)
+    {
+        _messageService.Send(message);
+    }
+}
