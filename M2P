@@ -1,0 +1,105 @@
+using System;
+using System.Collections.Generic;
+
+class User
+{
+    public string Name { get; set; }
+    public string Email { get; set; }
+    public string Role { get; set; }
+
+    public User(string name, string email, string role)
+    {
+        Name = name;
+        Email = email;
+        Role = role;
+    }
+
+    public override string ToString()
+    {
+        return $"{Name} ({Email}), Role: {Role}";
+    }
+}
+
+class UserManager
+{
+    private List<User> users = new List<User>();
+
+    public void AddUser(string name, string email, string role)
+    {
+        if (FindUserByEmail(email) != null)
+        {
+            Console.WriteLine("Пользователь с таким email уже существует.");
+            return;
+        }
+        users.Add(new User(name, email, role));
+        Console.WriteLine($"Добавлен пользователь: {name}");
+    }
+
+    public void RemoveUser(string email)
+    {
+        var user = FindUserByEmail(email);
+        if (user != null)
+        {
+            users.Remove(user);
+            Console.WriteLine($"Пользователь {user.Name} удалён.");
+        }
+        else
+        {
+            Console.WriteLine("Пользователь не найден.");
+        }
+    }
+
+    public void UpdateUser(string email, string newName, string newRole)
+    {
+        var user = FindUserByEmail(email);
+        if (user != null)
+        {
+            user.Name = newName;
+            user.Role = newRole;
+            Console.WriteLine($"Данные пользователя {email} обновлены.");
+        }
+        else
+        {
+            Console.WriteLine("Пользователь не найден.");
+        }
+    }
+
+    public void ShowUsers()
+    {
+        Console.WriteLine("\nСписок пользователей:");
+        foreach (var user in users)
+        {
+            Console.WriteLine(user);
+        }
+    }
+
+    // Вспомогательный метод (DRY — чтобы не дублировать логику поиска)
+    private User FindUserByEmail(string email)
+    {
+        return users.Find(u => u.Email == email);
+    }
+}
+
+class Program
+{
+    static void Main(string[] args)
+    {
+        UserManager manager = new UserManager();
+
+        // Добавляем пользователей
+        manager.AddUser("Иван Иванов", "ivan@example.com", "Admin");
+        manager.AddUser("Петр Петров", "petr@example.com", "User");
+
+        manager.ShowUsers();
+
+        // Обновляем пользователя
+        manager.UpdateUser("petr@example.com", "Петр Петрович", "Admin");
+
+        manager.ShowUsers();
+
+        // Удаляем пользователя
+        manager.RemoveUser("ivan@example.com");
+
+        manager.ShowUsers();
+    }
+}
