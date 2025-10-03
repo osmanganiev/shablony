@@ -1,0 +1,167 @@
+using System;
+using System.Collections.Generic;
+
+// Базовый класс Транспортное средство
+abstract class Vehicle
+{
+    public string Brand { get; set; }
+    public string Model { get; set; }
+    public int Year { get; set; }
+
+    public Vehicle(string brand, string model, int year)
+    {
+        Brand = brand;
+        Model = model;
+        Year = year;
+    }
+
+    public virtual void StartEngine()
+    {
+        Console.WriteLine($"{Brand} {Model} ({Year}) – двигатель запущен.");
+    }
+
+    public virtual void StopEngine()
+    {
+        Console.WriteLine($"{Brand} {Model} ({Year}) – двигатель остановлен.");
+    }
+
+    public override string ToString()
+    {
+        return $"{Brand} {Model} ({Year})";
+    }
+}
+
+// Автомобиль
+class Car : Vehicle
+{
+    public int Doors { get; set; }
+    public string Transmission { get; set; }
+
+    public Car(string brand, string model, int year, int doors, string transmission)
+        : base(brand, model, year)
+    {
+        Doors = doors;
+        Transmission = transmission;
+    }
+
+    public override string ToString()
+    {
+        return base.ToString() + $", двери: {Doors}, трансмиссия: {Transmission}";
+    }
+}
+
+// Мотоцикл
+class Motorcycle : Vehicle
+{
+    public string BodyType { get; set; }
+    public bool HasBox { get; set; }
+
+    public Motorcycle(string brand, string model, int year, string bodyType, bool hasBox)
+        : base(brand, model, year)
+    {
+        BodyType = bodyType;
+        HasBox = hasBox;
+    }
+
+    public override string ToString()
+    {
+        return base.ToString() + $", кузов: {BodyType}, бокс: {(HasBox ? "есть" : "нет")}";
+    }
+}
+
+// Гараж
+class Garage
+{
+    public List<Vehicle> Vehicles { get; private set; } = new List<Vehicle>();
+
+    public void AddVehicle(Vehicle vehicle)
+    {
+        Vehicles.Add(vehicle);
+        Console.WriteLine($"В гараж добавлено: {vehicle}");
+    }
+
+    public void RemoveVehicle(Vehicle vehicle)
+    {
+        Vehicles.Remove(vehicle);
+        Console.WriteLine($"Из гаража удалено: {vehicle}");
+    }
+
+    public void ShowVehicles()
+    {
+        Console.WriteLine("\nСодержимое гаража:");
+        foreach (var v in Vehicles)
+            Console.WriteLine(v);
+    }
+}
+
+// Автопарк
+class Fleet
+{
+    public List<Garage> Garages { get; private set; } = new List<Garage>();
+
+    public void AddGarage(Garage garage)
+    {
+        Garages.Add(garage);
+        Console.WriteLine("Добавлен новый гараж в автопарк.");
+    }
+
+    public void RemoveGarage(Garage garage)
+    {
+        Garages.Remove(garage);
+        Console.WriteLine("Гараж удалён из автопарка.");
+    }
+
+    public void FindVehicle(string brand)
+    {
+        Console.WriteLine($"\nПоиск транспорта по марке: {brand}");
+        foreach (var garage in Garages)
+        {
+            foreach (var v in garage.Vehicles)
+            {
+                if (v.Brand.Equals(brand, StringComparison.OrdinalIgnoreCase))
+                {
+                    Console.WriteLine($"Найдено: {v}");
+                }
+            }
+        }
+    }
+}
+
+// Тестирование
+class Program
+{
+    static void Main(string[] args)
+    {
+        // Создаём транспорт
+        Car car1 = new Car("Toyota", "Camry", 2020, 4, "Автомат");
+        Car car2 = new Car("BMW", "X5", 2019, 5, "Механика");
+        Motorcycle moto1 = new Motorcycle("Yamaha", "R1", 2021, "Спорт", false);
+
+        // Создаём гаражи
+        Garage garage1 = new Garage();
+        Garage garage2 = new Garage();
+
+        // Добавляем транспорт
+        garage1.AddVehicle(car1);
+        garage1.AddVehicle(moto1);
+
+        garage2.AddVehicle(car2);
+
+        garage1.ShowVehicles();
+        garage2.ShowVehicles();
+
+        // Создаём автопарк
+        Fleet fleet = new Fleet();
+        fleet.AddGarage(garage1);
+        fleet.AddGarage(garage2);
+
+        // Поиск
+        fleet.FindVehicle("Toyota");
+
+        // Удаление
+        garage1.RemoveVehicle(moto1);
+        fleet.RemoveGarage(garage2);
+
+        garage1.ShowVehicles();
+    }
+}
