@@ -1,0 +1,99 @@
+public class OrderService
+{
+    private double CalculateTotal(int quantity, double price)
+    {
+        return quantity * price;
+    }
+
+    public void CreateOrder(string productName, int quantity, double price)
+    {
+        double totalPrice = CalculateTotal(quantity, price);
+        Console.WriteLine($"Order for {productName} created. Total: {totalPrice}");
+    }
+
+    public void UpdateOrder(string productName, int quantity, double price)
+    {
+        double totalPrice = CalculateTotal(quantity, price);
+        Console.WriteLine($"Order for {productName} updated. New total: {totalPrice}");
+    }
+}
+
+// Базовый класс для транспорта
+public abstract class Vehicle
+{
+    public virtual void Start()
+    {
+        Console.WriteLine($"{GetType().Name} is starting");
+    }
+
+    public virtual void Stop()
+    {
+        Console.WriteLine($"{GetType().Name} is stopping");
+    }
+}
+
+public class Car : Vehicle { }
+
+public class Truck : Vehicle { }
+public class Calculator
+{
+    public int Add(int a, int b)
+    {
+        return a + b;
+    }
+}
+
+// Singleton не нужен — обычный класс
+public class Worker
+{
+    public void DoSomething()
+    {
+        Console.WriteLine("Doing something...");
+    }
+}
+
+public class Client
+{
+    public void Execute()
+    {
+        Worker worker = new Worker();
+        worker.DoSomething();
+    }
+}
+public class Circle
+{
+    private double _radius;
+
+    public Circle(double radius)
+    {
+        _radius = radius;
+    }
+
+    public double CalculateArea()
+    {
+        return Math.PI * _radius * _radius;
+    }
+}
+
+public class Square
+{
+    private double _side;
+
+    public Square(double side)
+    {
+        _side = side;
+    }
+
+    public double CalculateArea()
+    {
+        return _side * _side;
+    }
+}
+
+public class MathOperations
+{
+    public int Add(int a, int b)
+    {
+        return a + b;
+    }
+}
