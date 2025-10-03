@@ -1,0 +1,176 @@
+using System;
+using System.Collections.Generic;
+
+class Book
+{
+    public string Title { get; set; }
+    public string Author { get; set; }
+    public string ISBN { get; set; }
+    public int Copies { get; set; }
+
+    public Book(string title, string author, string isbn, int copies)
+    {
+        Title = title;
+        Author = author;
+        ISBN = isbn;
+        Copies = copies;
+    }
+
+    public override string ToString()
+    {
+        return $"{Title} ({Author}), ISBN: {ISBN}, Copies: {Copies}";
+    }
+}
+
+class Reader
+{
+    public string Name { get; set; }
+    public int ReaderId { get; set; }
+
+    public Reader(string name, int readerId)
+    {
+        Name = name;
+        ReaderId = readerId;
+    }
+
+    public override string ToString()
+    {
+        return $"Reader {Name} (ID: {ReaderId})";
+    }
+}
+
+class Library
+{
+    private List<Book> books = new List<Book>();
+    private List<Reader> readers = new List<Reader>();
+
+    public void AddBook(Book book)
+    {
+        books.Add(book);
+        Console.WriteLine($"Книга добавлена: {book.Title}");
+    }
+
+    public void RemoveBook(string isbn)
+    {
+        var book = books.Find(b => b.ISBN == isbn);
+        if (book != null)
+        {
+            books.Remove(book);
+            Console.WriteLine($"Книга удалена: {book.Title}");
+        }
+        else
+        {
+            Console.WriteLine("Книга не найдена");
+        }
+    }
+
+    public void RegisterReader(Reader reader)
+    {
+        readers.Add(reader);
+        Console.WriteLine($"Читатель зарегистрирован: {reader.Name}");
+    }
+
+    public void RemoveReader(int readerId)
+    {
+        var reader = readers.Find(r => r.ReaderId == readerId);
+        if (reader != null)
+        {
+            readers.Remove(reader);
+            Console.WriteLine($"Читатель удалён: {reader.Name}");
+        }
+        else
+        {
+            Console.WriteLine("Читатель не найден");
+        }
+    }
+
+    public void BorrowBook(int readerId, string isbn)
+    {
+        var reader = readers.Find(r => r.ReaderId == readerId);
+        var book = books.Find(b => b.ISBN == isbn);
+
+        if (reader != null && book != null && book.Copies > 0)
+        {
+            book.Copies--;
+            Console.WriteLine($"{reader.Name} взял книгу: {book.Title}");
+        }
+        else
+        {
+            Console.WriteLine("Невозможно выдать книгу");
+        }
+    }
+
+    public void ReturnBook(int readerId, string isbn)
+    {
+        var reader = readers.Find(r => r.ReaderId == readerId);
+        var book = books.Find(b => b.ISBN == isbn);
+
+        if (reader != null && book != null)
+        {
+            book.Copies++;
+            Console.WriteLine($"{reader.Name} вернул книгу: {book.Title}");
+        }
+        else
+        {
+            Console.WriteLine("Ошибка возврата книги");
+        }
+    }
+
+    public void ShowBooks()
+    {
+        Console.WriteLine("\nСписок книг:");
+        foreach (var book in books)
+        {
+            Console.WriteLine(book);
+        }
+    }
+
+    public void ShowReaders()
+    {
+        Console.WriteLine("\nСписок читателей:");
+        foreach (var reader in readers)
+        {
+            Console.WriteLine(reader);
+        }
+    }
+}
+
+class Program
+{
+    static void Main(string[] args)
+    {
+        Library library = new Library();
+
+        // Создаём книги
+        Book b1 = new Book("Война и мир", "Лев Толстой", "1111", 3);
+        Book b2 = new Book("Преступление и наказание", "Ф.М. Достоевский", "2222", 2);
+
+        library.AddBook(b1);
+        library.AddBook(b2);
+        library.ShowBooks();
+
+        // Регистрируем читателей
+        Reader r1 = new Reader("Иван Иванов", 1);
+        Reader r2 = new Reader("Петр Петров", 2);
+
+        library.RegisterReader(r1);
+        library.RegisterReader(r2);
+        library.ShowReaders();
+
+        // Выдаём книги
+        library.BorrowBook(1, "1111");
+        library.BorrowBook(2, "2222");
+        library.ShowBooks();
+
+        // Возврат книги
+        library.ReturnBook(1, "1111");
+        library.ShowBooks();
+
+        // Удаление книги и читателя
+        library.RemoveBook("2222");
+        library.RemoveReader(2);
+
+        library.ShowBooks();
+        library.ShowReaders();
+    }
+}
