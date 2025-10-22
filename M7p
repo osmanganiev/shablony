@@ -1,0 +1,380 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace BehavioralPatterns
+{
+    // ============================================================
+    // 1. PATTERN COMMAND — "Умный дом"
+    // ============================================================
+
+    public interface ICommand
+    {
+        void Execute();
+        void Undo();
+        string Name { get; }
+    }
+
+    // ---------- Устройства ----------
+    public class Light
+    {
+        public string Location { get; }
+        public bool IsOn { get; private set; }
+
+        public Light(string location) { Location = location; }
+
+        public void On() { IsOn = true; Console.WriteLine($"[Light] {Location} — включен."); }
+        public void Off() { IsOn = false; Console.WriteLine($"[Light] {Location} — выключен."); }
+    }
+
+    public class Television
+    {
+        public string Location { get; }
+        public bool IsOn { get; private set; }
+
+        public Television(string location) { Location = location; }
+
+        public void On() { IsOn = true; Console.WriteLine($"[TV] {Location} — включен."); }
+        public void Off() { IsOn = false; Console.WriteLine($"[TV] {Location} — выключен."); }
+    }
+
+    public class AirConditioner
+    {
+        public bool IsOn { get; private set; }
+        public double Temperature { get; private set; }
+
+        public AirConditioner(double temp = 24) { Temperature = temp; }
+
+        public void On() { IsOn = true; Console.WriteLine($"[AC] Включен при {Temperature}°C"); }
+        public void Off() { IsOn = false; Console.WriteLine("[AC] Выключен"); }
+        public void SetTemperature(double t) { Temperature = t; Console.WriteLine($"[AC] Температура установлена: {t}°C"); }
+    }
+
+    // ---------- Команды ----------
+    public class LightOnCommand : ICommand
+    {
+        private readonly Light _light;
+        public string Name => $"LightOn({_light.Location})";
+        public LightOnCommand(Light light) => _light = light;
+        public void Execute() => _light.On();
+        public void Undo() => _light.Off();
+    }
+
+    public class LightOffCommand : ICommand
+    {
+        private readonly Light _light;
+        public string Name => $"LightOff({_light.Location})";
+        public LightOffCommand(Light light) => _light = light;
+        public void Execute() => _light.Off();
+        public void Undo() => _light.On();
+    }
+
+    public class TVOnCommand : ICommand
+    {
+        private readonly Television _tv;
+        public string Name => $"TVOn({_tv.Location})";
+        public TVOnCommand(Television tv) => _tv = tv;
+        public void Execute() => _tv.On();
+        public void Undo() => _tv.Off();
+    }
+
+    public class TVOffCommand : ICommand
+    {
+        private readonly Television _tv;
+        public string Name => $"TVOff({_tv.Location})";
+        public TVOffCommand(Television tv) => _tv = tv;
+        public void Execute() => _tv.Off();
+        public void Undo() => _tv.On();
+    }
+
+    public class ACOnCommand : ICommand
+    {
+        private readonly AirConditioner _ac;
+        public string Name => "ACOn";
+        public ACOnCommand(AirConditioner ac) => _ac = ac;
+        public void Execute() => _ac.On();
+        public void Undo() => _ac.Off();
+    }
+
+    public class ACOffCommand : ICommand
+    {
+        private readonly AirConditioner _ac;
+        public string Name => "ACOff";
+        public ACOffCommand(AirConditioner ac) => _ac = ac;
+        public void Execute() => _ac.Off();
+        public void Undo() => _ac.On();
+    }
+
+    public class ACSetTempCommand : ICommand
+    {
+        private readonly AirConditioner _ac;
+        private readonly double _newTemp;
+        private double _oldTemp;
+        public string Name => $"ACSetTemp({_newTemp}°C)";
+        public ACSetTempCommand(AirConditioner ac, double temp) { _ac = ac; _newTemp = temp; }
+        public void Execute() { _oldTemp = _ac.Temperature; _ac.SetTemperature(_newTemp); }
+        public void Undo() { _ac.SetTemperature(_oldTemp); }
+    }
+
+    // ---------- Макрокоманда ----------
+    public class MacroCommand : ICommand
+    {
+        private readonly List<ICommand> _commands;
+        public string Name => "Macro: " + string.Join(", ", _commands.Select(c => c.Name));
+        public MacroCommand(IEnumerable<ICommand> commands) { _commands = commands.ToList(); }
+
+        public void Execute()
+        {
+            Console.WriteLine("\n[Macro] Выполнение макрокоманды:");
+            foreach (var cmd in _commands) cmd.Execute();
+        }
+
+        public void Undo()
+        {
+            Console.WriteLine("[Macro] Отмена макрокоманды:");
+            for (int i = _commands.Count - 1; i >= 0; i--) _commands[i].Undo();
+        }
+    }
+
+    // ---------- Пульт ----------
+    public class RemoteControl
+    {
+        private readonly Dictionary<int, (ICommand on, ICommand off)> _slots = new();
+        private readonly Stack<ICommand> _undoStack = new();
+        private readonly Stack<ICommand> _redoStack = new();
+
+        public void SetCommand(int slot, ICommand on, ICommand off)
+        {
+            _slots[slot] = (on, off);
+            Console.WriteLine($"[Remote] Настроен слот {slot}: ON={on?.Name ?? "—"}, OFF={off?.Name ?? "—"}");
+        }
+
+        public void PressOn(int slot)
+        {
+            if (!_slots.ContainsKey(slot) || _slots[slot].on == null)
+            {
+                Console.WriteLine($"[Remote] Ошибка: слот {slot} пуст.");
+                return;
+            }
+            var cmd = _slots[slot].on;
+            cmd.Execute();
+            _undoStack.Push(cmd);
+            _redoStack.Clear();
+        }
+
+        public void PressOff(int slot)
+        {
+            if (!_slots.ContainsKey(slot) || _slots[slot].off == null)
+            {
+                Console.WriteLine($"[Remote] Ошибка: слот {slot} пуст.");
+                return;
+            }
+            var cmd = _slots[slot].off;
+            cmd.Execute();
+            _undoStack.Push(cmd);
+            _redoStack.Clear();
+        }
+
+        public void Undo()
+        {
+            if (_undoStack.Count == 0) { Console.WriteLine("[Remote] Нечего отменять."); return; }
+            var cmd = _undoStack.Pop();
+            cmd.Undo();
+            _redoStack.Push(cmd);
+        }
+
+        public void Redo()
+        {
+            if (_redoStack.Count == 0) { Console.WriteLine("[Remote] Нечего повторять."); return; }
+            var cmd = _redoStack.Pop();
+            cmd.Execute();
+            _undoStack.Push(cmd);
+        }
+    }
+
+    // ============================================================
+    // 2. PATTERN TEMPLATE METHOD — "Генерация отчётов"
+    // ============================================================
+
+    public abstract class ReportGenerator
+    {
+        public void GenerateReport()
+        {
+            CollectData();
+            FormatData();
+            if (CustomerWantsSave())
+                SaveReport();
+            LogStep("Отчёт успешно создан.\n");
+        }
+
+        protected abstract void CollectData();
+        protected abstract void FormatData();
+
+        protected virtual void SaveReport() => Console.WriteLine("[Report] Отчёт сохранён.");
+        protected virtual bool CustomerWantsSave() => true; // hook
+        protected virtual void LogStep(string msg) => Console.WriteLine("[LOG] " + msg);
+    }
+
+    public class PdfReport : ReportGenerator
+    {
+        protected override void CollectData() => Console.WriteLine("[PDF] Сбор данных для PDF...");
+        protected override void FormatData() => Console.WriteLine("[PDF] Форматирование PDF...");
+    }
+
+    public class ExcelReport : ReportGenerator
+    {
+        protected override void CollectData() => Console.WriteLine("[Excel] Сбор данных для Excel...");
+        protected override void FormatData() => Console.WriteLine("[Excel] Форматирование Excel...");
+        protected override void SaveReport() => Console.WriteLine("[Excel] Файл Excel сохранён.");
+    }
+
+    public class HtmlReport : ReportGenerator
+    {
+        protected override void CollectData() => Console.WriteLine("[HTML] Сбор данных для HTML...");
+        protected override void FormatData() => Console.WriteLine("[HTML] Форматирование HTML...");
+    }
+
+    public class CsvReport : ReportGenerator
+    {
+        protected override void CollectData() => Console.WriteLine("[CSV] Сбор данных для CSV...");
+        protected override void FormatData() => Console.WriteLine("[CSV] Форматирование CSV...");
+    }
+
+    // ============================================================
+    // 3. PATTERN MEDIATOR — "Чат-система"
+    // ============================================================
+
+    public interface IMediator
+    {
+        void SendMessage(string from, string message, string channel);
+        void RegisterUser(User user, string channel);
+        void RemoveUser(User user, string channel);
+    }
+
+    public class ChannelMediator : IMediator
+    {
+        private readonly Dictionary<string, List<User>> _channels = new();
+
+        public void RegisterUser(User user, string channel)
+        {
+            if (!_channels.ContainsKey(channel))
+                _channels[channel] = new List<User>();
+
+            _channels[channel].Add(user);
+            Console.WriteLine($"[Chat:{channel}] {user.Name} присоединился.");
+        }
+
+        public void RemoveUser(User user, string channel)
+        {
+            if (_channels.TryGetValue(channel, out var users) && users.Remove(user))
+                Console.WriteLine($"[Chat:{channel}] {user.Name} покинул чат.");
+        }
+
+        public void SendMessage(string from, string message, string channel)
+        {
+            if (!_channels.ContainsKey(channel))
+            {
+                Console.WriteLine($"[Chat] Ошибка: канала {channel} не существует!");
+                return;
+            }
+
+            foreach (var u in _channels[channel])
+            {
+                if (u.Name != from)
+                    u.ReceiveMessage(from, message, channel);
+            }
+        }
+    }
+
+    public class User
+    {
+        public string Name { get; }
+        private IMediator _mediator;
+
+        public User(string name, IMediator mediator)
+        {
+            Name = name;
+            _mediator = mediator;
+        }
+
+        public void SendMessage(string msg, string channel)
+        {
+            Console.WriteLine($"[{Name}] отправляет: {msg}");
+            _mediator.SendMessage(Name, msg, channel);
+        }
+
+        public void ReceiveMessage(string from, string msg, string channel)
+        {
+            Console.WriteLine($"[{Name}] получил сообщение от {from} в {channel}: {msg}");
+        }
+    }
+
+    // ============================================================
+    // MAIN — Демонстрация всех трёх паттернов
+    // ============================================================
+
+    class Program
+    {
+        static void Main(string[] args)
+        {
+            Console.WriteLine("=== PATTERN 1: COMMAND ===");
+
+            var light = new Light("Гостиная");
+            var tv = new Television("Спальня");
+            var ac = new AirConditioner();
+
+            var remote = new RemoteControl();
+            remote.SetCommand(0, new LightOnCommand(light), new LightOffCommand(light));
+            remote.SetCommand(1, new TVOnCommand(tv), new TVOffCommand(tv));
+            remote.SetCommand(2, new ACOnCommand(ac), new ACOffCommand(ac));
+
+            // Выполнение
+            remote.PressOn(0);
+            remote.PressOff(0);
+            remote.Undo();
+            remote.Redo();
+
+            // Макрокоманда
+            var macro = new MacroCommand(new ICommand[] {
+                new LightOffCommand(light),
+                new TVOnCommand(tv),
+                new ACSetTempCommand(ac, 21)
+            });
+            remote.SetCommand(3, macro, null);
+            remote.PressOn(3);
+            remote.Undo();
+
+            Console.WriteLine("\n=== PATTERN 2: TEMPLATE METHOD ===");
+
+            ReportGenerator pdf = new PdfReport();
+            ReportGenerator excel = new ExcelReport();
+            ReportGenerator html = new HtmlReport();
+            ReportGenerator csv = new CsvReport();
+
+            pdf.GenerateReport();
+            excel.GenerateReport();
+            html.GenerateReport();
+            csv.GenerateReport();
+
+            Console.WriteLine("\n=== PATTERN 3: MEDIATOR ===");
+
+            var mediator = new ChannelMediator();
+            var alice = new User("Алиса", mediator);
+            var bob = new User("Боб", mediator);
+            var carl = new User("Карл", mediator);
+
+            mediator.RegisterUser(alice, "Main");
+            mediator.RegisterUser(bob, "Main");
+            mediator.RegisterUser(carl, "Games");
+
+            alice.SendMessage("Всем привет!", "Main");
+            bob.SendMessage("Привет, Алиса!", "Main");
+            carl.SendMessage("Кто играет сегодня?", "Games");
+
+            mediator.RemoveUser(bob, "Main");
+            alice.SendMessage("Пока, Боб!", "Main");
+
+            Console.WriteLine("\n=== ВСЕ ПАТТЕРНЫ ОТРАБОТАЛИ ===");
+        }
+    }
+}
