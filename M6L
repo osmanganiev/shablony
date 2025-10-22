@@ -1,0 +1,300 @@
+using System;
+using System.Collections.Generic;
+
+namespace PatternsModule06
+{
+    // =====================================================
+    // PART 1 — STRATEGY: расчёт стоимости доставки
+    // =====================================================
+
+    // Интерфейс стратегии доставки
+    public interface IShippingStrategy
+    {
+        decimal CalculateShippingCost(decimal weightKg, decimal distanceKm);
+    }
+
+    // 1) Стандартная доставка: weight * 0.5 + distance * 0.1
+    public class StandardShippingStrategy : IShippingStrategy
+    {
+        public decimal CalculateShippingCost(decimal weightKg, decimal distanceKm)
+        {
+            return weightKg * 0.5m + distanceKm * 0.1m;
+        }
+    }
+
+    // 2) Экспресс-доставка: weight * 0.75 + distance * 0.2 + fixed 10
+    public class ExpressShippingStrategy : IShippingStrategy
+    {
+        public decimal CalculateShippingCost(decimal weightKg, decimal distanceKm)
+        {
+            return (weightKg * 0.75m + distanceKm * 0.2m) + 10m;
+        }
+    }
+
+    // 3) Международная доставка: weight*1.0 + distance*0.5 + fixed 15
+    public class InternationalShippingStrategy : IShippingStrategy
+    {
+        public decimal CalculateShippingCost(decimal weightKg, decimal distanceKm)
+        {
+            return weightKg * 1.0m + distanceKm * 0.5m + 15m;
+        }
+    }
+
+    // 4) Дополнительная: Ночная доставка — увеличивает стоимость на фиксированную плату (например, +8)
+    public class NightShippingStrategy : IShippingStrategy
+    {
+        private readonly IShippingStrategy _baseStrategy;
+        private readonly decimal _nightSurcharge;
+
+        // NightShipping оборачивает любую базовую стратегию и добавляет надбавку
+        public NightShippingStrategy(IShippingStrategy baseStrategy, decimal nightSurcharge = 8m)
+        {
+            _baseStrategy = baseStrategy ?? throw new ArgumentNullException(nameof(baseStrategy));
+            _nightSurcharge = nightSurcharge;
+        }
+
+        public decimal CalculateShippingCost(decimal weightKg, decimal distanceKm)
+        {
+            return _baseStrategy.CalculateShippingCost(weightKg, distanceKm) + _nightSurcharge;
+        }
+    }
+
+    // Контекст доставки — использует стратегию
+    public class DeliveryContext
+    {
+        private IShippingStrategy _strategy;
+
+        public void SetShippingStrategy(IShippingStrategy strategy)
+        {
+            _strategy = strategy ?? throw new ArgumentNullException(nameof(strategy));
+        }
+
+        // Метод с валидацией входных данных
+        public decimal CalculateCost(decimal weightKg, decimal distanceKm)
+        {
+            if (_strategy == null) throw new InvalidOperationException("Стратегия доставки не установлена.");
+            if (weightKg <= 0) throw new ArgumentException("Вес должен быть положительным числом.", nameof(weightKg));
+            if (distanceKm < 0) throw new ArgumentException("Расстояние не может быть отрицательным.", nameof(distanceKm));
+
+            var cost = _strategy.CalculateShippingCost(weightKg, distanceKm);
+            if (cost < 0) cost = 0;
+            return decimal.Round(cost, 2);
+        }
+    }
+
+    // =====================================================
+    // PART 2 — OBSERVER: WeatherStation и наблюдатели
+    // =====================================================
+
+    // Интерфейс наблюдателя
+    public interface IObserver
+    {
+        void Update(float temperatureC);
+    }
+
+    // Интерфейс субъекта
+    public interface ISubject
+    {
+        void RegisterObserver(IObserver observer);
+        void RemoveObserver(IObserver observer);
+        void NotifyObservers();
+    }
+
+    // Конкретный субъект — WeatherStation
+    public class WeatherStation : ISubject
+    {
+        private readonly List<IObserver> _observers = new();
+        private float _temperatureC;
+
+        public float TemperatureC
+        {
+            get => _temperatureC;
+            private set
+            {
+                _temperatureC = value;
+            }
+        }
+
+        // Установить новую температуру и уведомить (с валидацией)
+        public void SetTemperature(float newTempC)
+        {
+            // Обработка ошибок: допустим разумный диапазон -90..60°C
+            if (newTempC < -90f || newTempC > 60f)
+            {
+                Console.WriteLine($"[WeatherStation] Ошибка: неверная температура {newTempC}°C (вне допустимого диапазона).");
+                return;
+            }
+
+            Console.WriteLine($"\n[WeatherStation] Обновление температуры: {newTempC}°C");
+            TemperatureC = newTempC;
+            NotifyObservers();
+        }
+
+        public void RegisterObserver(IObserver observer)
+        {
+            if (observer == null) throw new ArgumentNullException(nameof(observer));
+            if (_observers.Contains(observer))
+            {
+                Console.WriteLine("[WeatherStation] Наблюдатель уже зарегистрирован.");
+                return;
+            }
+            _observers.Add(observer);
+            Console.WriteLine("[WeatherStation] Наблюдатель добавлен.");
+        }
+
+        public void RemoveObserver(IObserver observer)
+        {
+            if (observer == null) throw new ArgumentNullException(nameof(observer));
+            if (!_observers.Remove(observer))
+            {
+                Console.WriteLine("[WeatherStation] Попытка удалить несуществующего наблюдателя.");
+                return;
+            }
+            Console.WriteLine("[WeatherStation] Наблюдатель удалён.");
+        }
+
+        public void NotifyObservers()
+        {
+            // Копируем список, чтобы безопасно позволить подписке/отписке во время уведомления
+            var observersSnapshot = new List<IObserver>(_observers);
+            foreach (var obs in observersSnapshot)
+            {
+                try
+                {
+                    obs.Update(TemperatureC);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[WeatherStation] Ошибка при уведомлении наблюдателя: {ex.Message}");
+                }
+            }
+        }
+    }
+
+    // Простой дисплей (консольный)
+    public class WeatherDisplay : IObserver
+    {
+        public string Name { get; }
+        public WeatherDisplay(string name) { Name = name; }
+        public void Update(float temperatureC)
+        {
+            Console.WriteLine($"[Display:{Name}] Текущее значение температуры: {temperatureC}°C");
+        }
+    }
+
+    // Email-уведомление (симулируем)
+    public class EmailAlertObserver : IObserver
+    {
+        public string Email { get; }
+        public EmailAlertObserver(string email) { Email = email; }
+        public void Update(float temperatureC)
+        {
+            // Пример: отправляем письмо только если холоднее -10°C или теплее 35°C
+            if (temperatureC <= -10f || temperatureC >= 35f)
+            {
+                Console.WriteLine($"[Email:{Email}] Отправлено уведомление: температура {temperatureC}°C");
+            }
+            else
+            {
+                Console.WriteLine($"[Email:{Email}] Ничего не отправляем (температура {temperatureC}°C в норме).");
+            }
+        }
+    }
+
+    // Звуковой сигнал/оповещение
+    public class SoundAlertObserver : IObserver
+    {
+        public string DeviceId { get; }
+        public SoundAlertObserver(string deviceId) { DeviceId = deviceId; }
+        public void Update(float temperatureC)
+        {
+            // Сигнал при резком изменении — для примера просто печатаем
+            Console.WriteLine($"[Sound:{DeviceId}] Звуковой оповещатель: температура обновлена до {temperatureC}°C");
+        }
+    }
+
+    // =====================================================
+    // CLIENT / DEMO
+    // =====================================================
+    class Program
+    {
+        static void Main(string[] args)
+        {
+            Console.WriteLine("=== Module 06 — Strategy & Observer Demo ===\n");
+
+            // ---------------------------
+            // DEMO 1: Strategy — доставка
+            // ---------------------------
+            Console.WriteLine(">>> Strategy: расчёт стоимости доставки");
+            var delivery = new DeliveryContext();
+
+            // Демонстрация выбора и расчёта (без интерактивности)
+            var weight = 2.5m;   // кг
+            var distance = 120m; // км
+
+            // Стандарт
+            delivery.SetShippingStrategy(new StandardShippingStrategy());
+            Console.WriteLine($"Standard (w={weight}kg, d={distance}km) -> {delivery.CalculateCost(weight, distance):C}");
+
+            // Экспресс
+            delivery.SetShippingStrategy(new ExpressShippingStrategy());
+            Console.WriteLine($"Express  (w={weight}kg, d={distance}km) -> {delivery.CalculateCost(weight, distance):C}");
+
+            // Международная
+            delivery.SetShippingStrategy(new InternationalShippingStrategy());
+            Console.WriteLine($"International (w={weight}kg, d={distance}km) -> {delivery.CalculateCost(weight, distance):C}");
+
+            // Ночная сборка вокруг базовой стратегии (например, ночная экспресс)
+            var nightExpress = new NightShippingStrategy(new ExpressShippingStrategy(), nightSurcharge: 12m);
+            delivery.SetShippingStrategy(nightExpress);
+            Console.WriteLine($"Night-Express (w={weight}kg, d={distance}km) -> {delivery.CalculateCost(weight, distance):C}");
+
+            // Обработка ошибок: отрицательные параметры — демонстрация
+            try
+            {
+                delivery.SetShippingStrategy(new StandardShippingStrategy());
+                Console.WriteLine("Попытка рассчитать с отрицательным весом:");
+                delivery.CalculateCost(-1m, 10m);
+            }
+            catch (ArgumentException ex)
+            {
+                Console.WriteLine($"Ошибка: {ex.Message}");
+            }
+
+            // ---------------------------
+            // DEMO 2: Observer — метеостанция
+            // ---------------------------
+            Console.WriteLine("\n>>> Observer: WeatherStation (наблюдатели)");
+
+            var station = new WeatherStation();
+
+            var disp1 = new WeatherDisplay("Улица");
+            var disp2 = new WeatherDisplay("Витрина");
+            var email = new EmailAlertObserver("alerts@example.com");
+            var sound = new SoundAlertObserver("Speaker-01");
+
+            // Подписываем наблюдателей
+            station.RegisterObserver(disp1);
+            station.RegisterObserver(disp2);
+            station.RegisterObserver(email);
+            station.RegisterObserver(sound);
+
+            // Обновления температуры
+            station.SetTemperature(22.5f);
+            station.SetTemperature(36.0f); // должно триггерить Email
+            station.SetTemperature(-15.0f); // должно триггерить Email
+
+            // Удалим один наблюдатель и снова обновим
+            station.RemoveObserver(disp2);
+            station.SetTemperature(18.0f);
+
+            // Попытка удалить уже удалённого наблюдателя
+            station.RemoveObserver(disp2); // покажет сообщение об ошибке
+
+            // Попытка установить экстремальную некорректную температуру
+            station.SetTemperature(120.0f); // обработается как ошибка — не будет уведомления
+
+            Console.WriteLine("\n=== Demo finished ===");
+        }
+    }
+}
