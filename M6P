@@ -1,0 +1,570 @@
+// Program.cs
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace TravelAndStockSystem
+{
+    #region Logger
+    public static class Logger
+    {
+        private static readonly List<string> _events = new();
+        private static readonly object _lock = new();
+        public static void Log(string msg)
+        {
+            var line = $"[{DateTime.Now:HH:mm:ss}] {msg}";
+            lock (_lock)
+            {
+                _events.Add(line);
+            }
+            Console.WriteLine(line);
+        }
+        public static IEnumerable<string> GetEvents() { lock (_lock) { return _events.ToList(); } }
+    }
+    #endregion
+
+    #region Strategy - Travel Booking
+
+    // Дополнительные вспомогательные типы
+    public enum ServiceClass { Economy, Business }
+    public enum TransportType { Air, Train, Bus }
+
+    public class TravelRequest
+    {
+        public TransportType Transport { get; set; }
+        public decimal DistanceKm { get; set; }
+        public int Passengers { get; set; } = 1;
+        public ServiceClass Class { get; set; } = ServiceClass.Economy;
+        public int ChildCount { get; set; } = 0;
+        public int SeniorCount { get; set; } = 0;
+        public int BaggageCount { get; set; } = 0; // pieces
+        public int Transfers { get; set; } = 0; // number of transfers
+        public bool NightDelivery { get; set; } = false; // e.g. night surcharge as decorator demo
+        public decimal? DiscountPercent { get; set; } // additional discount
+    }
+
+    public interface ICostCalculationStrategy
+    {
+        decimal CalculateCost(TravelRequest req);
+        TransportType StrategyTransportType { get; }
+    }
+
+    // Air strategy - higher base fare, class multiplier, taxes, transfer fee
+    public class AirStrategy : ICostCalculationStrategy
+    {
+        public TransportType StrategyTransportType => TransportType.Air;
+
+        public decimal CalculateCost(TravelRequest req)
+        {
+            // base cost per km
+            decimal basePerKm = 0.25m; // higher for air
+            decimal baseCost = req.DistanceKm * basePerKm;
+
+            // class multiplier
+            decimal classMult = req.Class == ServiceClass.Business ? 2.0m : 1.0m;
+
+            // baggage fee per piece
+            decimal baggageFee = 20m * req.BaggageCount;
+
+            // transfers add fee
+            decimal transferFee = 15m * req.Transfers;
+
+            // taxes & airport fees (fixed percent)
+            decimal taxes = 0.12m * baseCost;
+
+            decimal passengerFactor = req.Passengers;
+
+            decimal cost = (baseCost * classMult + baggageFee + transferFee + taxes) * passengerFactor;
+
+            // discounts for children and seniors
+            decimal childrenDiscount = 0.5m * req.ChildCount * (baseCost * classMult + taxes); // simple
+            decimal seniorDiscount = 0.8m * req.SeniorCount * (baseCost * classMult + taxes);
+
+            cost -= (childrenDiscount + seniorDiscount);
+
+            // clamp
+            if (cost < 0) cost = 0;
+            // apply additional percent discount if present
+            if (req.DiscountPercent.HasValue)
+            {
+                cost *= (1 - req.DiscountPercent.Value / 100m);
+            }
+
+            return decimal.Round(cost, 2);
+        }
+    }
+
+    // Train strategy - medium cost, seat class effect, lower baggage fee
+    public class TrainStrategy : ICostCalculationStrategy
+    {
+        public TransportType StrategyTransportType => TransportType.Train;
+        public decimal CalculateCost(TravelRequest req)
+        {
+            decimal basePerKm = 0.08m;
+            decimal baseCost = req.DistanceKm * basePerKm;
+
+            decimal classMult = req.Class == ServiceClass.Business ? 1.5m : 1.0m;
+
+            decimal baggageFee = 5m * req.BaggageCount;
+
+            decimal transfersFee = 5m * req.Transfers;
+
+            decimal cost = (baseCost * classMult + baggageFee + transfersFee) * req.Passengers;
+
+            // discount for children and seniors
+            cost -= 0.5m * req.ChildCount * baseCost;
+            cost -= 0.7m * req.SeniorCount * baseCost;
+
+            if (req.DiscountPercent.HasValue) cost *= (1 - req.DiscountPercent.Value / 100m);
+
+            if (cost < 0) cost = 0;
+            return decimal.Round(cost, 2);
+        }
+    }
+
+    // Bus strategy - cheapest, maybe flat boarding fee, less effect of class
+    public class BusStrategy : ICostCalculationStrategy
+    {
+        public TransportType StrategyTransportType => TransportType.Bus;
+
+        public decimal CalculateCost(TravelRequest req)
+        {
+            decimal basePerKm = 0.04m;
+            decimal baseCost = req.DistanceKm * basePerKm;
+
+            decimal classMult = req.Class == ServiceClass.Business ? 1.2m : 1.0m;
+
+            decimal boardingFee = 2m * req.Passengers;
+            decimal baggageFee = 2m * req.BaggageCount;
+            decimal transfersFee = 2m * req.Transfers;
+
+            decimal cost = (baseCost * classMult + boardingFee + baggageFee + transfersFee) * req.Passengers;
+
+            // children and seniors have larger discount on buses
+            cost -= 0.6m * req.ChildCount * baseCost;
+            cost -= 0.9m * req.SeniorCount * baseCost;
+
+            if (req.DiscountPercent.HasValue) cost *= (1 - req.DiscountPercent.Value / 100m);
+            if (cost < 0) cost = 0;
+            return decimal.Round(cost, 2);
+        }
+    }
+
+    // Decorator example: night surcharge wrapping any strategy
+    public class NightSurchargeDecorator : ICostCalculationStrategy
+    {
+        private readonly ICostCalculationStrategy _inner;
+        private readonly decimal _surcharge;
+
+        public NightSurchargeDecorator(ICostCalculationStrategy inner, decimal surcharge)
+        {
+            _inner = inner ?? throw new ArgumentNullException(nameof(inner));
+            _surcharge = surcharge;
+        }
+
+        public TransportType StrategyTransportType => _inner.StrategyTransportType;
+
+        public decimal CalculateCost(TravelRequest req)
+        {
+            var core = _inner.CalculateCost(req);
+            return decimal.Round(core + _surcharge * req.Passengers, 2);
+        }
+    }
+
+    public class TravelBookingContext
+    {
+        private ICostCalculationStrategy _strategy;
+        public void SetStrategy(ICostCalculationStrategy strategy)
+        {
+            _strategy = strategy ?? throw new ArgumentNullException(nameof(strategy));
+            Logger.Log($"[Travel] Стратегия установлена: {_strategy.GetType().Name}");
+        }
+
+        public decimal CalculateCost(TravelRequest req)
+        {
+            if (req == null) throw new ArgumentNullException(nameof(req));
+
+            // basic validation
+            if (req.DistanceKm <= 0) throw new ArgumentException("Distance must be positive.");
+            if (req.Passengers <= 0) throw new ArgumentException("Passengers must be at least 1.");
+            if (_strategy == null) throw new InvalidOperationException("No strategy set.");
+
+            var cost = _strategy.CalculateCost(req);
+            Logger.Log($"[Travel] Рассчитана стоимость: {cost:C} для транспорта {_strategy.StrategyTransportType}");
+            return cost;
+        }
+    }
+
+    #endregion
+
+    #region Observer - Stock Exchange
+
+    // Notification payload
+    public class StockUpdate
+    {
+        public string Ticker { get; set; } = "";
+        public decimal Price { get; set; }
+        public DateTime Time { get; set; } = DateTime.Now;
+    }
+
+    public interface IStockObserver
+    {
+        string Name { get; }
+        // Optional: observers can provide filtering preferences when subscribing
+        bool WantsNotification(string ticker, decimal price);
+        Task OnStockUpdateAsync(StockUpdate update);
+        // For reporting
+        int NotificationsReceived { get; set; }
+    }
+
+    public interface IStockExchange
+    {
+        void Register(string ticker, IStockObserver observer);
+        void Unregister(string ticker, IStockObserver observer);
+        decimal? GetPrice(string ticker);
+        Task UpdatePriceAsync(string ticker, decimal newPrice);
+        IEnumerable<string> GetSubscribedTickers(IStockObserver observer);
+        IDictionary<string, List<string>> GetSubscriberReport(); // ticker -> observer names
+    }
+
+    public class StockExchange : IStockExchange
+    {
+        private readonly ConcurrentDictionary<string, decimal> _prices = new();
+        private readonly ConcurrentDictionary<string, List<IStockObserver>> _subscribers = new();
+        private readonly object _lock = new();
+
+        public void Register(string ticker, IStockObserver observer)
+        {
+            if (string.IsNullOrWhiteSpace(ticker)) throw new ArgumentNullException(nameof(ticker));
+            if (observer == null) throw new ArgumentNullException(nameof(observer));
+            _subscribers.AddOrUpdate(ticker,
+                (_) => new List<IStockObserver> { observer },
+                (_, list) =>
+                {
+                    lock (list)
+                    {
+                        if (!list.Contains(observer)) list.Add(observer);
+                    }
+                    return list;
+                });
+            Logger.Log($"[StockExchange] {observer.Name} подписан на {ticker}");
+        }
+
+        public void Unregister(string ticker, IStockObserver observer)
+        {
+            if (_subscribers.TryGetValue(ticker, out var list))
+            {
+                lock (list)
+                {
+                    if (list.Remove(observer))
+                        Logger.Log($"[StockExchange] {observer.Name} отписан от {ticker}");
+                }
+            }
+        }
+
+        public decimal? GetPrice(string ticker) => _prices.TryGetValue(ticker, out var p) ? p : (decimal?)null;
+
+        // Update price and notify matching subscribers asynchronously
+        public async Task UpdatePriceAsync(string ticker, decimal newPrice)
+        {
+            _prices[ticker] = newPrice;
+            Logger.Log($"[StockExchange] Обновление цены {ticker} -> {newPrice:C}");
+
+            if (!_subscribers.TryGetValue(ticker, out var list) || list.Count == 0)
+            {
+                Logger.Log($"[StockExchange] Нет подписчиков на {ticker}");
+                return;
+            }
+
+            // copy snapshot to avoid locks during await
+            List<IStockObserver> snapshot;
+            lock (list) { snapshot = list.ToList(); }
+            var tasks = new List<Task>();
+            foreach (var obs in snapshot)
+            {
+                try
+                {
+                    if (obs.WantsNotification(ticker, newPrice))
+                    {
+                        // notify asynchronously (simulate network/delay)
+                        tasks.Add(Task.Run(async () =>
+                        {
+                            await Task.Delay(100); // simulate small delay
+                            await obs.OnStockUpdateAsync(new StockUpdate { Ticker = ticker, Price = newPrice, Time = DateTime.Now });
+                        }));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"[StockExchange] Ошибка при уведомлении {obs.Name}: {ex.Message}");
+                }
+            }
+            await Task.WhenAll(tasks);
+        }
+
+        public IEnumerable<string> GetSubscribedTickers(IStockObserver observer)
+        {
+            return _subscribers.Where(kv => kv.Value.Contains(observer)).Select(kv => kv.Key);
+        }
+
+        public IDictionary<string, List<string>> GetSubscriberReport()
+        {
+            var report = new Dictionary<string, List<string>>();
+            foreach (var kv in _subscribers)
+            {
+                lock (kv.Value)
+                {
+                    report[kv.Key] = kv.Value.Select(o => o.Name).ToList();
+                }
+            }
+            return report;
+        }
+    }
+
+    // Concrete observers
+
+    // Simple trader that prints updates
+    public class TraderObserver : IStockObserver
+    {
+        public string Name { get; }
+        public int NotificationsReceived { get; set; } = 0;
+        private readonly decimal? _minThreshold; // only notify if price >= minThreshold
+        public TraderObserver(string name, decimal? minThreshold = null)
+        {
+            Name = name;
+            _minThreshold = minThreshold;
+        }
+
+        public bool WantsNotification(string ticker, decimal price)
+        {
+            if (!_minThreshold.HasValue) return true;
+            return price >= _minThreshold.Value;
+        }
+
+        public Task OnStockUpdateAsync(StockUpdate update)
+        {
+            NotificationsReceived++;
+            Logger.Log($"[Trader:{Name}] Получено обновление {update.Ticker}: {update.Price:C} (время {update.Time:HH:mm:ss})");
+            return Task.CompletedTask;
+        }
+    }
+
+    // Trading bot that "buys" or "sells" based on threshold
+    public class TradingBotObserver : IStockObserver
+    {
+        public string Name { get; }
+        public int NotificationsReceived { get; set; } = 0;
+        private readonly decimal _buyBelow; // buy when price <= buyBelow
+        private readonly decimal _sellAbove; // sell when price >= sellAbove
+        private readonly int _volume; // units to trade
+
+        public TradingBotObserver(string name, decimal buyBelow, decimal sellAbove, int volume = 10)
+        {
+            Name = name;
+            _buyBelow = buyBelow;
+            _sellAbove = sellAbove;
+            _volume = volume;
+        }
+
+        public bool WantsNotification(string ticker, decimal price)
+        {
+            // interested always, but will act only if condition hit
+            return true;
+        }
+
+        public Task OnStockUpdateAsync(StockUpdate update)
+        {
+            NotificationsReceived++;
+            if (update.Price <= _buyBelow)
+            {
+                Logger.Log($"[Bot:{Name}] BUY { _volume } of {update.Ticker} at {update.Price:C}");
+            }
+            else if (update.Price >= _sellAbove)
+            {
+                Logger.Log($"[Bot:{Name}] SELL { _volume } of {update.Ticker} at {update.Price:C}");
+            }
+            else
+            {
+                Logger.Log($"[Bot:{Name}] No action for {update.Ticker} at {update.Price:C}");
+            }
+            return Task.CompletedTask;
+        }
+    }
+
+    // Email notifier - only notify on big swings
+    public class EmailObserver : IStockObserver
+    {
+        public string Name { get; }
+        public int NotificationsReceived { get; set; } = 0;
+        private readonly decimal _deltaPercentThreshold; // notify if percent change greater than threshold
+        private readonly IStockExchange _exchange;
+
+        private readonly Dictionary<string, decimal> _lastSeen = new();
+
+        public EmailObserver(string name, IStockExchange exchange, decimal deltaPercentThreshold = 2m)
+        {
+            Name = name;
+            _exchange = exchange;
+            _deltaPercentThreshold = deltaPercentThreshold;
+        }
+
+        public bool WantsNotification(string ticker, decimal price) => true; // always receives, internal decides
+
+        public Task OnStockUpdateAsync(StockUpdate update)
+        {
+            NotificationsReceived++;
+            if (!_lastSeen.TryGetValue(update.Ticker, out var prev))
+            {
+                _lastSeen[update.Ticker] = update.Price;
+                Logger.Log($"[Email:{Name}] First notice for {update.Ticker} = {update.Price:C}");
+            }
+            else
+            {
+                var delta = Math.Abs((double)((update.Price - prev) / prev * 100m));
+                if ((decimal)delta >= _deltaPercentThreshold)
+                {
+                    Logger.Log($"[Email:{Name}] Significant change for {update.Ticker}: {prev:C} -> {update.Price:C} ({delta:F2}%)");
+                }
+                else
+                {
+                    Logger.Log($"[Email:{Name}] Minor change for {update.Ticker}: {update.Price:C} (delta {delta:F2}%)");
+                }
+                _lastSeen[update.Ticker] = update.Price;
+            }
+            return Task.CompletedTask;
+        }
+    }
+
+    #endregion
+
+    #region Demo / Main
+
+    class Program
+    {
+        static async Task Main(string[] args)
+        {
+            Console.WriteLine("=== Travel Booking (Strategy) & Stock Exchange (Observer) Demo ===\n");
+
+            // ----------------- Travel Booking Demo -----------------
+            Logger.Log("Starting Travel Booking demo...");
+            var bookingContext = new TravelBookingContext();
+
+            var req = new TravelRequest
+            {
+                Transport = TransportType.Air,
+                DistanceKm = 1500m,
+                Passengers = 2,
+                Class = ServiceClass.Business,
+                ChildCount = 0,
+                SeniorCount = 1,
+                BaggageCount = 3,
+                Transfers = 1,
+                DiscountPercent = 5m
+            };
+
+            // choose strategy based on transport
+            ICostCalculationStrategy strat = req.Transport switch
+            {
+                TransportType.Air => new AirStrategy(),
+                TransportType.Train => new TrainStrategy(),
+                TransportType.Bus => new BusStrategy(),
+                _ => throw new NotSupportedException("Unsupported transport")
+            };
+
+            // Demonstrate decorator: night surcharge if needed
+            if (req.NightDelivery)
+                strat = new NightSurchargeDecorator(strat, 10m);
+
+            bookingContext.SetStrategy(strat);
+
+            try
+            {
+                var cost = bookingContext.CalculateCost(req);
+                Logger.Log($"Total trip cost: {cost:C}");
+            }
+            catch (Exception ex)
+            {
+                Logger.Log("Error calculating cost: " + ex.Message);
+            }
+
+            // show switching strategy at runtime: user decides to take train for same trip
+            Logger.Log("Switching strategy to Train...");
+            bookingContext.SetStrategy(new TrainStrategy());
+            req.Transport = TransportType.Train;
+            req.Class = ServiceClass.Economy;
+            req.BaggageCount = 1;
+            req.Passengers = 3;
+            var cost2 = bookingContext.CalculateCost(req);
+            Logger.Log($"Total trip cost (train): {cost2:C}");
+
+            // ----------------- Stock Exchange Demo -----------------
+            Logger.Log("Starting Stock Exchange demo...");
+            var exchange = new StockExchange();
+
+            // observers
+            var traderAlice = new TraderObserver("Alice-trader", minThreshold: 50m); // only notifications when price >=50
+            var botBob = new TradingBotObserver("Bob-bot", buyBelow: 20m, sellAbove: 80m, volume: 5);
+            var emailSvc = new EmailObserver("MarketEmail", exchange, deltaPercentThreshold: 5m);
+
+            // Register subscriptions
+            exchange.Register("AAPL", traderAlice);
+            exchange.Register("AAPL", botBob);
+            exchange.Register("AAPL", emailSvc);
+
+            exchange.Register("TSLA", botBob);
+            exchange.Register("TSLA", emailSvc);
+
+            exchange.Register("GME", traderAlice); // Alice also wants GME
+
+            // Simulate price changes over time
+            var rnd = new Random();
+            var tickers = new[] { "AAPL", "TSLA", "GME" };
+            var initialPrices = new Dictionary<string, decimal> { ["AAPL"] = 45m, ["TSLA"] = 600m, ["GME"] = 10m };
+
+            foreach (var kv in initialPrices)
+            {
+                await exchange.UpdatePriceAsync(kv.Key, kv.Value);
+            }
+
+            // simulate random updates
+            for (int step = 0; step < 8; step++)
+            {
+                // slight delay to simulate time passing
+                await Task.Delay(200);
+                var ticker = tickers[rnd.Next(tickers.Length)];
+                var last = exchange.GetPrice(ticker) ?? 10m;
+                // random change ± up to 20%
+                var pct = (decimal)(rnd.NextDouble() * 0.4 - 0.2);
+                var newPrice = decimal.Round(last * (1 + pct), 2);
+                if (newPrice <= 0) newPrice = last; // guard
+                await exchange.UpdatePriceAsync(ticker, newPrice);
+            }
+
+            // Unsubscribe demonstration
+            exchange.Unregister("AAPL", traderAlice);
+
+            // another update
+            await exchange.UpdatePriceAsync("AAPL", (exchange.GetPrice("AAPL") ?? 50m) + 5m);
+
+            // Generate subscriber report
+            var report = exchange.GetSubscriberReport();
+            Logger.Log("Subscriber report:");
+            foreach (var kv in report)
+            {
+                Logger.Log($"  Ticker {kv.Key}: subscribers = {string.Join(", ", kv.Value)}");
+            }
+
+            // Print events log size
+            var events = Logger.GetEvents().ToList();
+            Logger.Log($"Total logged events: {events.Count}");
+
+            Console.WriteLine("\nDemo finished. Press any key to exit.");
+            Console.ReadKey();
+        }
+    }
+
+    #endregion
+}
