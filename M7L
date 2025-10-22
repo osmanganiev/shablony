@@ -1,0 +1,452 @@
+// Program.cs
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace DesignPatternsLab
+{
+    // =========================
+    // COMMAND PATTERN
+    // =========================
+    public interface ICommand
+    {
+        void Execute();
+        void Undo();
+        string Name { get; }
+    }
+
+    // Devices (Receivers)
+    public class Light
+    {
+        public string Location { get; }
+        public bool IsOn { get; private set; }
+        public Light(string location) { Location = location; IsOn = false; }
+        public void On() { IsOn = true; Console.WriteLine($"[Light] {Location}: включено"); }
+        public void Off() { IsOn = false; Console.WriteLine($"[Light] {Location}: выключено"); }
+    }
+
+    public class Television
+    {
+        public string Location { get; }
+        public bool IsOn { get; private set; }
+        public Television(string location) { Location = location; IsOn = false; }
+        public void On() { IsOn = true; Console.WriteLine($"[TV] {Location}: включен"); }
+        public void Off() { IsOn = false; Console.WriteLine($"[TV] {Location}: выключен"); }
+    }
+
+    public class AirConditioner
+    {
+        public double Temperature { get; private set; }
+        public bool IsOn { get; private set; }
+        public AirConditioner(double initial = 24.0) { Temperature = initial; IsOn = false; }
+        public void On() { IsOn = true; Console.WriteLine($"[AC] Включен, {Temperature}°C"); }
+        public void Off() { IsOn = false; Console.WriteLine("[AC] Выключен"); }
+        public void SetTemperature(double t) { Temperature = t; Console.WriteLine($"[AC] Установлена температура: {Temperature}°C"); }
+    }
+
+    // Concrete Commands
+    public class LightOnCommand : ICommand
+    {
+        private readonly Light _light;
+        public string Name => $"LightOn({_light.Location})";
+        public LightOnCommand(Light light) { _light = light; }
+        public void Execute() => _light.On();
+        public void Undo() => _light.Off();
+    }
+    public class LightOffCommand : ICommand
+    {
+        private readonly Light _light;
+        public string Name => $"LightOff({_light.Location})";
+        public LightOffCommand(Light light) { _light = light; }
+        public void Execute() => _light.Off();
+        public void Undo() => _light.On();
+    }
+
+    public class TVOnCommand : ICommand
+    {
+        private readonly Television _tv;
+        public string Name => $"TVOn({_tv.Location})";
+        public TVOnCommand(Television tv) { _tv = tv; }
+        public void Execute() => _tv.On();
+        public void Undo() => _tv.Off();
+    }
+    public class TVOffCommand : ICommand
+    {
+        private readonly Television _tv;
+        public string Name => $"TVOff({_tv.Location})";
+        public TVOffCommand(Television tv) { _tv = tv; }
+        public void Execute() => _tv.Off();
+        public void Undo() => _tv.On();
+    }
+
+    public class ACOnCommand : ICommand
+    {
+        private readonly AirConditioner _ac;
+        public string Name => $"ACOn";
+        public ACOnCommand(AirConditioner ac) { _ac = ac; }
+        public void Execute() => _ac.On();
+        public void Undo() => _ac.Off();
+    }
+    public class ACOffCommand : ICommand
+    {
+        private readonly AirConditioner _ac;
+        public string Name => $"ACOff";
+        public ACOffCommand(AirConditioner ac) { _ac = ac; }
+        public void Execute() => _ac.Off();
+        public void Undo() => _ac.On();
+    }
+    // Command with parameter (set temperature) — stores previous value for Undo
+    public class ACSetTemperatureCommand : ICommand
+    {
+        private readonly AirConditioner _ac;
+        private readonly double _newTemp;
+        private double _prevTemp;
+        public string Name => $"ACSetTemp({_newTemp}°C)";
+        public ACSetTemperatureCommand(AirConditioner ac, double temp) { _ac = ac; _newTemp = temp; }
+        public void Execute()
+        {
+            _prevTemp = _ac.Temperature;
+            _ac.SetTemperature(_newTemp);
+        }
+        public void Undo()
+        {
+            _ac.SetTemperature(_prevTemp);
+            Console.WriteLine($"[ACSetTemp] Откат к {_prevTemp}°C");
+        }
+    }
+
+    // MacroCommand: выполняет последовательность команд
+    public class MacroCommand : ICommand
+    {
+        private readonly List<ICommand> _commands;
+        public string Name => $"Macro({string.Join(", ", _commands.Select(c => c.Name))})";
+        public MacroCommand(IEnumerable<ICommand> cmds) { _commands = cmds.ToList(); }
+        public void Execute()
+        {
+            foreach (var c in _commands) c.Execute();
+        }
+        public void Undo()
+        {
+            // отменяем в обратном порядке
+            for (int i = _commands.Count - 1; i >= 0; i--) _commands[i].Undo();
+        }
+    }
+
+    // RemoteControl (Invoker) — поддерживает несколько слотов, undo stack и логирование
+    public class RemoteControl
+    {
+        private readonly Dictionary<int, (ICommand on, ICommand off)> _slots = new Dictionary<int, (ICommand, ICommand)>();
+        private readonly Stack<ICommand> _history = new Stack<ICommand>();
+        private readonly List<string> _log = new List<string>();
+
+        // Назначить команды на слот (номер слота — целое)
+        public void SetCommands(int slot, ICommand onCmd, ICommand offCmd)
+        {
+            _slots[slot] = (onCmd, offCmd);
+            Console.WriteLine($"[Remote] Настроен слот {slot}: ON={onCmd?.Name ?? "null"}, OFF={offCmd?.Name ?? "null"}");
+        }
+
+        public void PressOnButton(int slot)
+        {
+            if (!_slots.ContainsKey(slot) || _slots[slot].on == null)
+            {
+                Console.WriteLine($"[Remote] Ошибка: на слоте {slot} не назначена команда ON.");
+                return;
+            }
+            var cmd = _slots[slot].on;
+            Console.WriteLine($"\n[Remote] Нажата ON (слот {slot}): {cmd.Name}");
+            cmd.Execute();
+            _history.Push(cmd);
+            _log.Add($"EXECUTE {DateTime.Now}: {cmd.Name}");
+        }
+
+        public void PressOffButton(int slot)
+        {
+            if (!_slots.ContainsKey(slot) || _slots[slot].off == null)
+            {
+                Console.WriteLine($"[Remote] Ошибка: на слоте {slot} не назначена команда OFF.");
+                return;
+            }
+            var cmd = _slots[slot].off;
+            Console.WriteLine($"\n[Remote] Нажата OFF (слот {slot}): {cmd.Name}");
+            cmd.Execute();
+            _history.Push(cmd);
+            _log.Add($"EXECUTE {DateTime.Now}: {cmd.Name}");
+        }
+
+        public void PressUndoButton()
+        {
+            if (_history.Count == 0)
+            {
+                Console.WriteLine("[Remote] Нечего отменять.");
+                return;
+            }
+            var cmd = _history.Pop();
+            Console.WriteLine($"\n[Remote] Нажата UNDO: {cmd.Name}");
+            cmd.Undo();
+            _log.Add($"UNDO {DateTime.Now}: {cmd.Name}");
+        }
+
+        // Отмена N последних команд
+        public void UndoLastN(int n)
+        {
+            if (n <= 0) return;
+            for (int i = 0; i < n; i++) PressUndoButton();
+        }
+
+        public void PrintLog()
+        {
+            Console.WriteLine("\n[Remote] Журнал команд:");
+            foreach (var l in _log) Console.WriteLine($"  {l}");
+        }
+    }
+
+    // =========================
+    // TEMPLATE METHOD PATTERN
+    // =========================
+    public abstract class Beverage
+    {
+        public void PrepareRecipe()
+        {
+            BoilWater();
+            Brew();
+            PourInCup();
+            if (CustomerWantsCondiments()) AddCondiments();
+        }
+        protected void BoilWater() => Console.WriteLine("[Beverage] Кипячение воды...");
+        protected abstract void Brew();
+        protected abstract void AddCondiments();
+        protected void PourInCup() => Console.WriteLine("[Beverage] Наливание в чашку...");
+        // Hook — по умолчанию true
+        protected virtual bool CustomerWantsCondiments() => true;
+    }
+
+    public class Tea : Beverage
+    {
+        private readonly bool _wantsLemon;
+        public Tea(bool wantsLemon = true) { _wantsLemon = wantsLemon; }
+        protected override void Brew() => Console.WriteLine("[Tea] Завариваем чай...");
+        protected override void AddCondiments() => Console.WriteLine("[Tea] Добавляем лимон");
+        protected override bool CustomerWantsCondiments() => _wantsLemon;
+    }
+
+    public class Coffee : Beverage
+    {
+        private readonly bool _wantsSugar;
+        public Coffee(bool wantsSugar = true) { _wantsSugar = wantsSugar; }
+        protected override void Brew() => Console.WriteLine("[Coffee] Завариваем кофе...");
+        protected override void AddCondiments() => Console.WriteLine("[Coffee] Добавляем сахар и молоко");
+        protected override bool CustomerWantsCondiments() => _wantsSugar;
+    }
+
+    // =========================
+    // MEDIATOR PATTERN
+    // =========================
+    public interface IMediator
+    {
+        void Register(User user);
+        void Unregister(User user);
+        void Broadcast(string from, string message);
+        void SendPrivate(string from, string to, string message);
+    }
+
+    public class ChatMediator : IMediator
+    {
+        private readonly Dictionary<string, User> _users = new Dictionary<string, User>(StringComparer.OrdinalIgnoreCase);
+        private readonly List<string> _chatLog = new List<string>();
+
+        public void Register(User user)
+        {
+            if (user == null) throw new ArgumentNullException(nameof(user));
+            if (_users.ContainsKey(user.Name))
+            {
+                Console.WriteLine($"[Chat] Пользователь {user.Name} уже зарегистрирован.");
+                return;
+            }
+            _users[user.Name] = user;
+            user.SetMediator(this);
+            Broadcast("SYSTEM", $"{user.Name} присоединился к чату.");
+            _chatLog.Add($"JOIN {DateTime.Now}: {user.Name}");
+        }
+
+        public void Unregister(User user)
+        {
+            if (user == null) throw new ArgumentNullException(nameof(user));
+            if (_users.Remove(user.Name))
+            {
+                Broadcast("SYSTEM", $"{user.Name} покинул чат.");
+                user.SetMediator(null);
+                _chatLog.Add($"LEAVE {DateTime.Now}: {user.Name}");
+            }
+            else Console.WriteLine($"[Chat] Пользователь {user.Name} не найден.");
+        }
+
+        public void Broadcast(string from, string message)
+        {
+            if (!_users.ContainsKey(from) && !from.Equals("SYSTEM", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.WriteLine($"[Chat] Ошибка: отправитель '{from}' не зарегистрирован.");
+                return;
+            }
+            foreach (var kv in _users)
+            {
+                if (!kv.Key.Equals(from, StringComparison.OrdinalIgnoreCase))
+                {
+                    kv.Value.Receive(from, message);
+                }
+            }
+            _chatLog.Add($"BROADCAST {DateTime.Now}: From={from}; Msg={message}");
+        }
+
+        public void SendPrivate(string from, string to, string message)
+        {
+            if (!_users.ContainsKey(from))
+            {
+                Console.WriteLine($"[Chat] Ошибка: отправитель '{from}' не зарегистрирован.");
+                return;
+            }
+            if (!_users.ContainsKey(to))
+            {
+                Console.WriteLine($"[Chat] Ошибка: получатель '{to}' не найден.");
+                return;
+            }
+            _users[to].ReceivePrivate(from, message);
+            _chatLog.Add($"PRIVATE {DateTime.Now}: From={from}; To={to}; Msg={message}");
+        }
+
+        public void PrintChatLog()
+        {
+            Console.WriteLine("\n[Chat] Лог чата:");
+            foreach (var e in _chatLog) Console.WriteLine($"  {e}");
+        }
+    }
+
+    public class User
+    {
+        public string Name { get; }
+        private IMediator _mediator;
+        public User(string name) { Name = name; }
+        public void SetMediator(IMediator mediator) => _mediator = mediator;
+        public void Send(string message)
+        {
+            if (_mediator == null) { Console.WriteLine($"[{Name}] Вы не в чате!"); return; }
+            _mediator.Broadcast(Name, message);
+        }
+        public void SendPrivate(string to, string message)
+        {
+            if (_mediator == null) { Console.WriteLine($"[{Name}] Вы не в чате!"); return; }
+            _mediator.SendPrivate(Name, to, message);
+        }
+        public void Receive(string from, string message) => Console.WriteLine($"[{Name}] (от {from}): {message}");
+        public void ReceivePrivate(string from, string message) => Console.WriteLine($"[{Name}] (PRIV от {from}): {message}");
+    }
+
+    // =========================
+    // CLIENT: Demo/tests
+    // =========================
+    class Program
+    {
+        static void Main(string[] args)
+        {
+            Console.WriteLine("=== Command Pattern demo ===");
+            // devices
+            var livingLight = new Light("Living Room");
+            var kitchenLight = new Light("Kitchen");
+            var tv = new Television("Living Room");
+            var ac = new AirConditioner(23.0);
+
+            // commands
+            var lightOnLiving = new LightOnCommand(livingLight);
+            var lightOffLiving = new LightOffCommand(livingLight);
+            var lightOnKitchen = new LightOnCommand(kitchenLight);
+            var tvOn = new TVOnCommand(tv);
+            var tvOff = new TVOffCommand(tv);
+            var acOn = new ACOnCommand(ac);
+            var acSet25 = new ACSetTemperatureCommand(ac, 25.0);
+
+            // macro: режим "Вечер" — включить свет в гостиной и ТВ
+            var eveningMacro = new MacroCommand(new ICommand[] { lightOnLiving, tvOn });
+
+            var remote = new RemoteControl();
+
+            // Установим слоты (0 — свет гостиной, 1 — кухня, 2 — ТВ, 3 — AC)
+            remote.SetCommands(0, lightOnLiving, lightOffLiving);
+            remote.SetCommands(1, lightOnKitchen, null); // пример: OFF не назначен
+            remote.SetCommands(2, tvOn, tvOff);
+            remote.SetCommands(3, acOn, new ACOffCommand(ac));
+
+            // Тесты
+            remote.PressOnButton(0);   // включаем свет гостиной
+            remote.PressOffButton(0);  // выключаем свет гостиной
+            remote.PressUndoButton();  // отмена — вернёт свет
+
+            remote.PressOnButton(1);   // включаем свет кухни
+            remote.PressOffButton(1);  // ошибочный: OFF не назначен -> обработка
+
+            // TV
+            remote.PressOnButton(2);
+            remote.PressOffButton(2);
+
+            // AC
+            remote.PressOnButton(3);
+            // set temp command (не через слот) — демонстрация команды с параметром
+            acSet25.Execute();
+            // логика: если хотим, можем положить в историю:
+            // (имитируем добавление в историю)
+            // remote does not currently track external Execute; but we can push if needed:
+            // remote.PushHistory(acSet25) -- not implemented; we use Undo via command object itself:
+            acSet25.Undo();
+
+            // Macro command usage via slot 4
+            remote.SetCommands(4, eveningMacro, null);
+            remote.PressOnButton(4);
+            remote.PressUndoButton(); // отменит Macro (откат в обратном порядке)
+
+            // Undo more than present
+            remote.UndoLastN(10);
+
+            // Show log
+            remote.PrintLog();
+
+            Console.WriteLine("\n=== Template Method demo ===");
+            var tea = new Tea(wantsLemon: true);
+            Console.WriteLine("\n-- Готовим чай (с лимоном) --");
+            tea.PrepareRecipe();
+
+            var coffee = new Coffee(wantsSugar: false);
+            Console.WriteLine("\n-- Готовим кофе (без сахара) --");
+            coffee.PrepareRecipe();
+
+            Console.WriteLine("\n=== Mediator demo ===");
+            var mediator = new ChatMediator();
+            var alice = new User("Alice");
+            var bob = new User("Bob");
+            var carla = new User("Carla");
+
+            mediator.Register(alice);
+            mediator.Register(bob);
+
+            alice.Send("Привет всем!");
+            bob.Send("Привет, Alice!");
+
+            // private message
+            bob.SendPrivate("Alice", "Привет в приват!");
+
+            // unregistered user tries to send
+            carla.Send("Я не в чате"); // должен получить сообщение об ошибке
+
+            mediator.Register(carla);
+            carla.Send("Теперь я в чате");
+
+            // private to non-existent
+            bob.SendPrivate("NoOne", "Hello?");
+
+            mediator.Unregister(bob);
+            bob.Send("Попытка после выхода"); // покажет ошибку
+
+            mediator.PrintChatLog();
+
+            Console.WriteLine("\n=== Demo finished ===");
+        }
+    }
+}
