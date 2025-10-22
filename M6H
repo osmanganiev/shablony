@@ -1,0 +1,207 @@
+using System;
+using System.Collections.Generic;
+
+namespace BehavioralPatterns
+{
+    // ==============================================================
+    // 1️⃣ PATTERN STRATEGY — Разные способы оплаты
+    // ==============================================================
+
+    // Интерфейс стратегии оплаты
+    public interface IPaymentStrategy
+    {
+        void Pay(double amount);
+    }
+
+    // Конкретные стратегии
+    public class CreditCardPayment : IPaymentStrategy
+    {
+        private string CardNumber;
+        public CreditCardPayment(string cardNumber) { CardNumber = cardNumber; }
+        public void Pay(double amount)
+        {
+            Console.WriteLine($"💳 Оплата {amount}₸ банковской картой (номер: {CardNumber}) успешно выполнена.");
+        }
+    }
+
+    public class PayPalPayment : IPaymentStrategy
+    {
+        private string Email;
+        public PayPalPayment(string email) { Email = email; }
+        public void Pay(double amount)
+        {
+            Console.WriteLine($"💰 Оплата {amount}₸ через PayPal аккаунт ({Email}) успешно выполнена.");
+        }
+    }
+
+    public class CryptoPayment : IPaymentStrategy
+    {
+        private string Wallet;
+        public CryptoPayment(string wallet) { Wallet = wallet; }
+        public void Pay(double amount)
+        {
+            Console.WriteLine($"🪙 Оплата {amount}₸ криптовалютой (кошелёк: {Wallet}) подтверждена в блокчейне.");
+        }
+    }
+
+    // Контекст — система оплаты
+    public class PaymentContext
+    {
+        private IPaymentStrategy _strategy;
+
+        public void SetStrategy(IPaymentStrategy strategy)
+        {
+            _strategy = strategy;
+        }
+
+        public void ExecutePayment(double amount)
+        {
+            if (_strategy == null)
+            {
+                Console.WriteLine("⚠️ Ошибка: стратегия оплаты не выбрана!");
+                return;
+            }
+            _strategy.Pay(amount);
+        }
+    }
+
+    // ==============================================================
+    // 2️⃣ PATTERN OBSERVER — Курсы валют и подписчики
+    // ==============================================================
+
+    // Интерфейс наблюдателя
+    public interface IObserver
+    {
+        void Update(string currency, double rate);
+    }
+
+    // Интерфейс субъекта
+    public interface ISubject
+    {
+        void Attach(IObserver observer);
+        void Detach(IObserver observer);
+        void Notify();
+    }
+
+    // Конкретный субъект — курсы валют
+    public class CurrencyExchange : ISubject
+    {
+        private List<IObserver> _observers = new();
+        private Dictionary<string, double> _rates = new();
+
+        public void SetRate(string currency, double rate)
+        {
+            _rates[currency] = rate;
+            Console.WriteLine($"\n💱 Курс обновлён: {currency} = {rate}₸");
+            Notify();
+        }
+
+        public Dictionary<string, double> GetRates() => _rates;
+
+        public void Attach(IObserver observer)
+        {
+            _observers.Add(observer);
+            Console.WriteLine("👀 Новый наблюдатель добавлен.");
+        }
+
+        public void Detach(IObserver observer)
+        {
+            _observers.Remove(observer);
+            Console.WriteLine("👋 Наблюдатель удалён.");
+        }
+
+        public void Notify()
+        {
+            foreach (var observer in _observers)
+                foreach (var rate in _rates)
+                    observer.Update(rate.Key, rate.Value);
+        }
+    }
+
+    // ---------- Конкретные наблюдатели ----------
+    public class MobileAppObserver : IObserver
+    {
+        public void Update(string currency, double rate)
+        {
+            Console.WriteLine($"📱 [Мобильное приложение] Новый курс: {currency} = {rate}₸");
+        }
+    }
+
+    public class WebDashboardObserver : IObserver
+    {
+        public void Update(string currency, double rate)
+        {
+            Console.WriteLine($"💻 [Веб-панель] Обновление курса: {currency} = {rate}₸");
+        }
+    }
+
+    public class BankAlertObserver : IObserver
+    {
+        public void Update(string currency, double rate)
+        {
+            if (rate > 500)
+                Console.WriteLine($"🏦 [Банк] Внимание! Высокий курс валюты {currency}: {rate}₸");
+        }
+    }
+
+    // ==============================================================
+    // MAIN — Демонстрация двух паттернов
+    // ==============================================================
+
+    class Program
+    {
+        static void Main(string[] args)
+        {
+            Console.WriteLine("=== ПАТТЕРН 1: СТРАТЕГИЯ (СПОСОБЫ ОПЛАТЫ) ===\n");
+
+            PaymentContext payment = new PaymentContext();
+
+            // Выбор стратегии в зависимости от условий
+            Console.WriteLine("Выберите способ оплаты: 1 - Картой, 2 - PayPal, 3 - Криптовалютой");
+            string choice = Console.ReadLine();
+
+            switch (choice)
+            {
+                case "1":
+                    payment.SetStrategy(new CreditCardPayment("1111-2222-3333-4444"));
+                    break;
+                case "2":
+                    payment.SetStrategy(new PayPalPayment("user@example.com"));
+                    break;
+                case "3":
+                    payment.SetStrategy(new CryptoPayment("0xA1B2C3D4E5F6"));
+                    break;
+                default:
+                    Console.WriteLine("Неверный выбор, используется оплата картой по умолчанию.");
+                    payment.SetStrategy(new CreditCardPayment("0000-0000-0000-0000"));
+                    break;
+            }
+
+            payment.ExecutePayment(15000);
+
+            // ======================================================
+            Console.WriteLine("\n=== ПАТТЕРН 2: НАБЛЮДАТЕЛЬ (ОТСЛЕЖИВАНИЕ КУРСОВ) ===\n");
+
+            var exchange = new CurrencyExchange();
+            var mobile = new MobileAppObserver();
+            var web = new WebDashboardObserver();
+            var bank = new BankAlertObserver();
+
+            exchange.Attach(mobile);
+            exchange.Attach(web);
+            exchange.Attach(bank);
+
+            // Изменение курсов валют
+            exchange.SetRate("USD", 480);
+            exchange.SetRate("EUR", 510);
+
+            // Удалим одного наблюдателя
+            exchange.Detach(web);
+
+            // Новое обновление курса
+            exchange.SetRate("RUB", 5.2);
+
+            Console.WriteLine("\n✅ Демонстрация паттернов завершена.");
+        }
+    }
+}
