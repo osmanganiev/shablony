@@ -1,0 +1,288 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+// Часть 1: Паттерн "Декоратор" для системы отчетов
+
+// Интерфейс для генерации отчетов
+public interface IReport
+{
+    string Generate();
+}
+
+// Базовый класс для отчета по продажам
+public class SalesReport : IReport
+{
+    // Фиктивные данные продаж
+    private readonly List<Dictionary<string, object>> salesData = new List<Dictionary<string, object>>
+    {
+        new Dictionary<string, object> { {"Id", 1}, {"Date", new DateTime(2025, 11, 1)}, {"Amount", 100.0}, {"Product", "Product A"} },
+        new Dictionary<string, object> { {"Id", 2}, {"Date", new DateTime(2025, 11, 5)}, {"Amount", 200.0}, {"Product", "Product B"} },
+        new Dictionary<string, object> { {"Id", 3}, {"Date", new DateTime(2025, 11, 10)}, {"Amount", 150.0}, {"Product", "Product C"} },
+    };
+
+    public string Generate()
+    {
+        StringBuilder sb = new StringBuilder("Sales Report:\n");
+        foreach (var sale in salesData)
+        {
+            sb.AppendLine($"Id: {sale["Id"]}, Date: {((DateTime)sale["Date"]).ToShortDateString()}, Amount: {sale["Amount"]}, Product: {sale["Product"]}");
+        }
+        return sb.ToString();
+    }
+}
+
+// Базовый класс для отчета по пользователям
+public class UserReport : IReport
+{
+    // Фиктивные данные пользователей
+    private readonly List<Dictionary<string, object>> userData = new List<Dictionary<string, object>>
+    {
+        new Dictionary<string, object> { {"Id", 1}, {"Name", "User A"}, {"RegistrationDate", new DateTime(2025, 10, 1)}, {"Purchases", 5} },
+        new Dictionary<string, object> { {"Id", 2}, {"Name", "User B"}, {"RegistrationDate", new DateTime(2025, 10, 15)}, {"Purchases", 3} },
+        new Dictionary<string, object> { {"Id", 3}, {"Name", "User C"}, {"RegistrationDate", new DateTime(2025, 11, 1)}, {"Purchases", 10} },
+    };
+
+    public string Generate()
+    {
+        StringBuilder sb = new StringBuilder("User Report:\n");
+        foreach (var user in userData)
+        {
+            sb.AppendLine($"Id: {user["Id"]}, Name: {user["Name"]}, Registration: {((DateTime)user["RegistrationDate"]).ToShortDateString()}, Purchases: {user["Purchases"]}");
+        }
+        return sb.ToString();
+    }
+}
+
+// Абстрактный декоратор
+public abstract class ReportDecorator : IReport
+{
+    protected IReport _report;
+
+    public ReportDecorator(IReport report)
+    {
+        _report = report;
+    }
+
+    public abstract string Generate();
+}
+
+// Декоратор для фильтрации по датам
+public class DateFilterDecorator : ReportDecorator
+{
+    private readonly DateTime _startDate;
+    private readonly DateTime _endDate;
+
+    public DateFilterDecorator(IReport report, DateTime startDate, DateTime endDate) : base(report)
+    {
+        _startDate = startDate;
+        _endDate = endDate;
+    }
+
+    public override string Generate()
+    {
+        string baseReport = _report.Generate();
+        // Симулируем фильтрацию (в реальности парсим данные и фильтруем)
+        return $"Filtered by date ({_startDate.ToShortDateString()} - {_endDate.ToShortDateString()}):\n{baseReport}";
+    }
+}
+
+// Декоратор для сортировки
+public class SortingDecorator : ReportDecorator
+{
+    private readonly string _sortBy;
+
+    public SortingDecorator(IReport report, string sortBy) : base(report)
+    {
+        _sortBy = sortBy;
+    }
+
+    public override string Generate()
+    {
+        string baseReport = _report.Generate();
+        // Симулируем сортировку
+        return $"Sorted by {_sortBy}:\n{baseReport}";
+    }
+}
+
+// Декоратор для экспорта в CSV
+public class CsvExportDecorator : ReportDecorator
+{
+    public CsvExportDecorator(IReport report) : base(report)
+    {
+    }
+
+    public override string Generate()
+    {
+        string baseReport = _report.Generate();
+        // Симулируем экспорт в CSV
+        return $"CSV Export:\n{baseReport.Replace("\n", ",")}";
+    }
+}
+
+// Декоратор для экспорта в PDF
+public class PdfExportDecorator : ReportDecorator
+{
+    public PdfExportDecorator(IReport report) : base(report)
+    {
+    }
+
+    public override string Generate()
+    {
+        string baseReport = _report.Generate();
+        // Симулируем экспорт в PDF
+        return $"PDF Export:\n{baseReport}";
+    }
+}
+
+// Клиентский код для декоратора
+public class ReportClient
+{
+    public static void Run()
+    {
+        IReport salesReport = new SalesReport();
+        salesReport = new DateFilterDecorator(salesReport, new DateTime(2025, 11, 1), new DateTime(2025, 11, 30));
+        salesReport = new SortingDecorator(salesReport, "Amount");
+        salesReport = new CsvExportDecorator(salesReport);
+        Console.WriteLine(salesReport.Generate());
+
+        IReport userReport = new UserReport();
+        userReport = new PdfExportDecorator(userReport);
+        Console.WriteLine(userReport.Generate());
+    }
+}
+
+// Часть 2: Паттерн "Адаптер" для логистики
+
+// Интерфейс внутренней службы доставки
+public interface IInternalDeliveryService
+{
+    void DeliverOrder(string orderId);
+    string GetDeliveryStatus(string orderId);
+}
+
+// Класс внутренней службы доставки
+public class InternalDeliveryService : IInternalDeliveryService
+{
+    public void DeliverOrder(string orderId)
+    {
+        Console.WriteLine($"Internal delivery for order {orderId} started.");
+    }
+
+    public string GetDeliveryStatus(string orderId)
+    {
+        return $"Status for order {orderId}: In transit (internal).";
+    }
+}
+
+// Сторонняя служба A
+public class ExternalLogisticsServiceA
+{
+    public void ShipItem(int itemId)
+    {
+        Console.WriteLine($"Shipping item {itemId} via Service A.");
+    }
+
+    public string TrackShipment(int shipmentId)
+    {
+        return $"Shipment {shipmentId} status: Delivered (Service A).";
+    }
+}
+
+// Сторонняя служба B
+public class ExternalLogisticsServiceB
+{
+    public void SendPackage(string packageInfo)
+    {
+        Console.WriteLine($"Sending package {packageInfo} via Service B.");
+    }
+
+    public string CheckPackageStatus(string trackingCode)
+    {
+        return $"Package {trackingCode} status: Out for delivery (Service B).";
+    }
+}
+
+// Адаптер для Service A
+public class LogisticsAdapterA : IInternalDeliveryService
+{
+    private readonly ExternalLogisticsServiceA _serviceA = new ExternalLogisticsServiceA();
+
+    public void DeliverOrder(string orderId)
+    {
+        int itemId = int.Parse(orderId); // Симуляция преобразования
+        _serviceA.ShipItem(itemId);
+    }
+
+    public string GetDeliveryStatus(string orderId)
+    {
+        int shipmentId = int.Parse(orderId);
+        return _serviceA.TrackShipment(shipmentId);
+    }
+}
+
+// Адаптер для Service B
+public class LogisticsAdapterB : IInternalDeliveryService
+{
+    private readonly ExternalLogisticsServiceB _serviceB = new ExternalLogisticsServiceB();
+
+    public void DeliverOrder(string orderId)
+    {
+        _serviceB.SendPackage(orderId);
+    }
+
+    public string GetDeliveryStatus(string orderId)
+    {
+        return _serviceB.CheckPackageStatus(orderId);
+    }
+}
+
+// Фабрика для выбора службы
+public class DeliveryServiceFactory
+{
+    public IInternalDeliveryService GetDeliveryService(string type)
+    {
+        switch (type.ToLower())
+        {
+            case "internal":
+                return new InternalDeliveryService();
+            case "a":
+                return new LogisticsAdapterA();
+            case "b":
+                return new LogisticsAdapterB();
+            default:
+                throw new ArgumentException("Unknown service type");
+        }
+    }
+}
+
+// Клиентский код для адаптера
+public class LogisticsClient
+{
+    public static void Run()
+    {
+        DeliveryServiceFactory factory = new DeliveryServiceFactory();
+
+        IInternalDeliveryService serviceA = factory.GetDeliveryService("a");
+        serviceA.DeliverOrder("123");
+        Console.WriteLine(serviceA.GetDeliveryStatus("123"));
+
+        IInternalDeliveryService internalService = factory.GetDeliveryService("internal");
+        internalService.DeliverOrder("456");
+        Console.WriteLine(internalService.GetDeliveryStatus("456"));
+    }
+}
+
+// Основной класс для запуска
+public class Program
+{
+    public static void Main(string[] args)
+    {
+        Console.WriteLine("=== Паттерн Декоратор ===");
+        ReportClient.Run();
+
+        Console.WriteLine("\n=== Паттерн Адаптер ===");
+        LogisticsClient.Run();
+    }
+}
