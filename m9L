@@ -1,0 +1,249 @@
+using System;
+using System.Collections.Generic;
+
+// ===========================================
+// ЧАСТЬ 1: ПАТТЕРН ДЕКОРАТОР — КАФЕ
+// ===========================================
+
+// Интерфейс для всех напитков
+public interface IBeverage
+{
+    double GetCost();
+    string GetDescription();
+}
+
+// Базовый напиток — Кофе
+public class Coffee : IBeverage
+{
+    public double GetCost() => 60.0;
+    public string GetDescription() => "Кофе";
+}
+
+// Другие базовые напитки
+public class Tea : IBeverage
+{
+    public double GetCost() => 40.0;
+    public string GetDescription() => "Чай";
+}
+
+public class Espresso : IBeverage
+{
+    public double GetCost() => 80.0;
+    public string GetDescription() => "Эспрессо";
+}
+
+// Абстрактный декоратор
+public abstract class BeverageDecorator : IBeverage
+{
+    protected IBeverage _beverage;
+
+    protected BeverageDecorator(IBeverage beverage)
+    {
+        _beverage = beverage;
+    }
+
+    public virtual double GetCost() => _beverage.GetCost();
+    public virtual string GetDescription() => _beverage.GetDescription();
+}
+
+// Декораторы — добавки
+public class MilkDecorator : BeverageDecorator
+{
+    public MilkDecorator(IBeverage beverage) : base(beverage) { }
+
+    public override double GetCost() => base.GetCost() + 20.0;
+    public override string GetDescription() => base.GetDescription() + " + Молоко";
+}
+
+public class SugarDecorator : BeverageDecorator
+{
+    public SugarDecorator(IBeverage beverage) : base(beverage) { }
+
+    public override double GetCost() => base.GetCost() + 10.0;
+    public override string GetDescription() => base.GetDescription() + " + Сахар";
+}
+
+public class ChocolateDecorator : BeverageDecorator
+{
+    public ChocolateDecorator(IBeverage beverage) : base(beverage) { }
+
+    public override double GetCost() => base.GetCost() + 30.0;
+    public override string GetDescription() => base.GetDescription() + " + Шоколад";
+}
+
+public class VanillaDecorator : BeverageDecorator
+{
+    public VanillaDecorator(IBeverage beverage) : base(beverage) { }
+
+    public override double GetCost() => base.GetCost() + 25.0;
+    public override string GetDescription() => base.GetDescription() + " + Ваниль";
+}
+
+public class CinnamonDecorator : BeverageDecorator
+{
+    public CinnamonDecorator(IBeverage beverage) : base(beverage) { }
+
+    public override double GetCost() => base.GetCost() + 15.0;
+    public override string GetDescription() => base.GetDescription() + " + Корица";
+}
+
+// ===========================================
+// ЧАСТЬ 2: ПАТТЕРН АДАПТЕР — ПЛАТЕЖНЫЕ СИСТЕМЫ
+// ===========================================
+
+// Единый интерфейс для всех платежных систем
+public interface IPaymentProcessor
+{
+    void ProcessPayment(double amount, string currency = "RUB");
+    void RefundPayment(double amount, string transactionId);
+    string GetProviderName();
+}
+
+// Внутренняя платежная система
+public class InternalPaymentProcessor : IPaymentProcessor
+{
+    public void ProcessPayment(double amount, string currency = "RUB")
+    {
+        Console.WriteLine($"[Внутренняя система] Оплата {amount} {currency} проведена.");
+    }
+
+    public void RefundPayment(double amount, string transactionId)
+    {
+    }
+
+    public string GetProviderName() => "Внутренняя система";
+}
+
+// Сторонняя система A — PayPal-подобная
+public class ExternalPaymentSystemA
+{
+    public bool MakePayment(double amountInUsd)
+    {
+        Console.WriteLine($"[PaySystem A] Платёж {amountInUsd} USD успешно выполнен.");
+        return true;
+    }
+
+    public void MakeRefund(string transactionId, double amountInUsd)
+    {
+        Console.WriteLine($"[PaySystem A] Возврат {amountInUsd} USD по транзакции {transactionId}.");
+    }
+}
+
+// Сторонняя система B — Stripe-подобная
+public class ExternalPaymentSystemB
+{
+    public string SendPayment(decimal amount, string currencyCode)
+    {
+        Console.WriteLine($"[PaySystem B] Отправлен платёж {amount} {currencyCode}.");
+        return Guid.NewGuid().ToString();
+    }
+
+    public bool ProcessRefund(string chargeId, decimal amount)
+    {
+        Console.WriteLine($"[PaySystem B] Возврат {amount} по charge {chargeId}.");
+        return true;
+    }
+}
+
+// Адаптер для ExternalPaymentSystemA
+public class PaymentAdapterA : IPaymentProcessor
+{
+    private readonly ExternalPaymentSystemA _systemA = new ExternalPaymentSystemA();
+    private const double UsdToRubRate = 95.0;
+
+    public void ProcessPayment(double amount, string currency = "RUB")
+    {
+        double amountInUsd = currency == "RUB" ? amount / UsdToRubRate : amount;
+        _systemA.MakePayment(amountInUsd);
+    }
+
+    public void RefundPayment(double amount, string transactionId)
+    {
+        double amountInUsd = amount / UsdToRubRate;
+        _systemA.MakeRefund(transactionId, amountInUsd);
+    }
+
+    public string GetProviderName() => "PaySystem A (адаптер)";
+}
+
+// Адаптер для ExternalPaymentSystemB
+public class PaymentAdapterB : IPaymentProcessor
+{
+    private readonly ExternalPaymentSystemB _systemB = new ExternalPaymentSystemB();
+
+    public void ProcessPayment(double amount, string currency = "RUB")
+    {
+        var transactionId = _systemB.SendPayment((decimal)amount, currency);
+        Console.WriteLine($"  → Транзакция: {transactionId}");
+    }
+
+    public void RefundPayment(double amount, string transactionId)
+    {
+        _systemB.ProcessRefund(transactionId, (decimal)amount);
+    }
+
+    public string GetProviderName() => "PaySystem B (адаптер)";
+}
+
+// Фабрика для выбора платежной системы
+public class PaymentFactory
+{
+    public static IPaymentProcessor GetPaymentProcessor(string region, double amount)
+    {
+        return region.ToLower() switch
+        {
+            "usa" or "eu" => new PaymentAdapterA(),
+            "asia" => new PaymentAdapterB(),
+            _ => new InternalPaymentProcessor()
+        };
+    }
+}
+
+// ===========================================
+// КЛИЕНТСКИЙ КОД — ДЕМОНСТРАЦИЯ
+// ===========================================
+class Program
+{
+    static void Main()
+    {
+        Console.WriteLine("=== ПАТТЕРН ДЕКОРАТОР: КАФЕ ===\n");
+
+        IBeverage order1 = new Espresso();
+        order1 = new MilkDecorator(order1);
+        order1 = new ChocolateDecorator(order1);
+        order1 = new VanillaDecorator(order1);
+
+        Console.WriteLine($"Заказ: {order1.GetDescription()}");
+        Console.WriteLine($"Стоимость: {order1.GetCost()} руб.\n");
+
+        IBeverage order2 = new Tea();
+        order2 = new SugarDecorator(order2);
+        order2 = new SugarDecorator(order2); // Двойной сахар!
+        order2 = new CinnamonDecorator(order2);
+
+        Console.WriteLine($"Заказ: {order2.GetDescription()}");
+        Console.WriteLine($"Стоимость: {order2.GetCost()} руб.\n");
+
+        Console.WriteLine("=== ПАТТЕРН АДАПТЕР: ПЛАТЕЖНЫЕ СИСТЕМЫ ===\n");
+
+        var processors = new List<IPaymentProcessor>
+        {
+            new InternalPaymentProcessor(),
+            new PaymentAdapterA(),
+            new PaymentAdapterB(),
+            PaymentFactory.GetPaymentProcessor("usa", 5000),
+            PaymentFactory.GetPaymentProcessor("russia", 3000),
+            PaymentFactory.GetPaymentProcessor("asia", 10000)
+        };
+
+        foreach (var processor in processors)
+        {
+            Console.WriteLine($"[{processor.GetProviderName()}]");
+            processor.ProcessPayment(999.0);
+            processor.RefundPayment(200.0, "txn_123");
+            Console.WriteLine();
+        }
+
+        Console.WriteLine("Готово! Все паттерны работают идеально.");
+    }
+}
