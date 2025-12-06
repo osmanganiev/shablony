@@ -1,0 +1,283 @@
+# ------------------------------
+# Подсистема бронирования номеров
+# ------------------------------
+
+class RoomBookingSystem:
+    def check_availability(self, room_type):
+        print(f"[RoomBooking] Проверка доступности номера типа: {room_type}")
+        return True
+
+    def book_room(self, room_type, guest_name):
+        print(f"[RoomBooking] Бронирование номера '{room_type}' для {guest_name}")
+
+    def cancel_booking(self, guest_name):
+        print(f"[RoomBooking] Отмена бронирования для {guest_name}")
+
+
+# ------------------------------
+# Подсистема ресторана
+# ------------------------------
+
+class RestaurantSystem:
+    def reserve_table(self, guest_name, time):
+        print(f"[Restaurant] Стол для {guest_name} забронирован на {time}")
+
+    def order_food(self, guest_name, dishes):
+        print(f"[Restaurant] {guest_name} заказал блюда: {', '.join(dishes)}")
+
+
+# ------------------------------
+# Подсистема мероприятий
+# ------------------------------
+
+class EventManagementSystem:
+    def book_hall(self, event_name):
+        print(f"[Event] Конференц-зал забронирован для мероприятия '{event_name}'")
+
+    def order_equipment(self, equipment_list):
+        print(f"[Event] Заказано оборудование: {', '.join(equipment_list)}")
+
+
+# ------------------------------
+# Система уборки
+# ------------------------------
+
+class CleaningService:
+    def schedule_cleaning(self, room_number, time):
+        print(f"[Cleaning] Уборка в номере {room_number} назначена на {time}")
+
+    def request_cleaning_now(self, room_number):
+        print(f"[Cleaning] Срочная уборка в номере {room_number}")
+
+
+# ------------------------------
+# Доп. подсистема: служба такси
+# ------------------------------
+
+class TaxiService:
+    def order_taxi(self, guest_name):
+        print(f"[Taxi] Такси для {guest_name} будет подано через 10 минут")
+
+
+# ------------------------------
+# ФАСАД
+# ------------------------------
+
+class HotelFacade:
+    def __init__(self):
+        self.rooms = RoomBookingSystem()
+        self.restaurant = RestaurantSystem()
+        self.events = EventManagementSystem()
+        self.cleaning = CleaningService()
+        self.taxi = TaxiService()
+
+    # --- Сценарий 1 ---
+    def book_room_with_services(self, room_type, guest_name, dishes, cleaning_time):
+        if self.rooms.check_availability(room_type):
+            self.rooms.book_room(room_type, guest_name)
+            self.restaurant.order_food(guest_name, dishes)
+            self.cleaning.schedule_cleaning(room_type, cleaning_time)
+            print("[Facade] Номер забронирован с услугами ресторана и уборки\n")
+
+    # --- Сценарий 2 ---
+    def organize_event(self, event_name, equipment_list, rooms_for_guests):
+        self.events.book_hall(event_name)
+        self.events.order_equipment(equipment_list)
+        for guest in rooms_for_guests:
+            self.rooms.book_room("Стандарт", guest)
+        print("[Facade] Мероприятие организовано и номера забронированы\n")
+
+    # --- Сценарий 3 ---
+    def reserve_table_with_taxi(self, guest_name, time):
+        self.restaurant.reserve_table(guest_name, time)
+        self.taxi.order_taxi(guest_name)
+        print("[Facade] Стол забронирован и такси заказано\n")
+
+    # --- Расширение функционала ---
+    def cancel_room_booking(self, guest_name):
+        self.rooms.cancel_booking(guest_name)
+
+    def request_cleaning(self, room_number):
+        self.cleaning.request_cleaning_now(room_number)
+
+
+# ------------------------------
+# КЛИЕНТСКИЙ КОД
+# ------------------------------
+
+if __name__ == "__main__":
+    hotel = HotelFacade()
+
+    print("\n--- Сценарий 1 ---")
+    hotel.book_room_with_services(
+        "Люкс", 
+        "Иван Иванов", 
+        ["Паста", "Салат"], 
+        "18:00"
+    )
+
+    print("--- Сценарий 2 ---")
+    hotel.organize_event(
+        event_name="Бизнес-конференция",
+        equipment_list=["Проектор", "Микрофоны"],
+        rooms_for_guests=["Андрей", "Мария", "Олег"]
+    )
+
+    print("--- Сценарий 3 ---")
+    hotel.reserve_table_with_taxi("Светлана", "20:00")
+
+    print("--- Доп. методы ---")
+    hotel.cancel_room_booking("Мария")
+    hotel.request_cleaning(101)
+from abc import ABC, abstractmethod
+
+
+# ------------------------------------
+# Абстрактный компонент
+# ------------------------------------
+class OrganizationComponent(ABC):
+    @abstractmethod
+    def show_info(self, indent=0):
+        pass
+
+    @abstractmethod
+    def get_budget(self):
+        pass
+
+    @abstractmethod
+    def get_employee_count(self):
+        pass
+
+
+# ------------------------------------
+# Лист — сотрудник
+# ------------------------------------
+class Employee(OrganizationComponent):
+    def __init__(self, name, position, salary):
+        self.name = name
+        self.position = position
+        self.salary = salary
+
+    def set_salary(self, new_salary):
+        self.salary = new_salary
+
+    def show_info(self, indent=0):
+        print(" " * indent + f"- {self.name} ({self.position}) — {self.salary} руб.")
+
+    def get_budget(self):
+        return self.salary
+
+    def get_employee_count(self):
+        return 1
+
+
+# ------------------------------------
+# Лист — контракор (не входит в бюджет)
+# ------------------------------------
+class Contractor(OrganizationComponent):
+    def __init__(self, name, service, fixed_pay):
+        self.name = name
+        self.service = service
+        self.fixed_pay = fixed_pay
+
+    def show_info(self, indent=0):
+        print(" " * indent + f"- {self.name} [Контрактор] ({self.service}) — фикс. {self.fixed_pay} руб.")
+
+    def get_budget(self):
+        return 0  # не влияет на бюджет отдела
+
+    def get_employee_count(self):
+        return 0  # не является сотрудником штата
+
+
+# ------------------------------------
+# Компоновщик — отдел
+# ------------------------------------
+class Department(OrganizationComponent):
+    def __init__(self, name):
+        self.name = name
+        self.components = []
+
+    def add(self, component: OrganizationComponent):
+        self.components.append(component)
+
+    def remove(self, component: OrganizationComponent):
+        self.components.remove(component)
+
+    def show_info(self, indent=0):
+        print(" " * indent + f"[Отдел: {self.name}]")
+        for c in self.components:
+            c.show_info(indent + 4)
+
+    def get_budget(self):
+        return sum(c.get_budget() for c in self.components)
+
+    def get_employee_count(self):
+        return sum(c.get_employee_count() for c in self.components)
+
+    # поиск сотрудника по имени
+    def find_employee(self, name):
+        for c in self.components:
+            if isinstance(c, Employee) and c.name == name:
+                return c
+            if isinstance(c, Department):
+                result = c.find_employee(name)
+                if result:
+                    return result
+        return None
+
+    # вернуть список всех сотрудников отдела и подотделов
+    def get_all_employees(self):
+        result = []
+        for c in self.components:
+            if isinstance(c, Employee):
+                result.append(c)
+            if isinstance(c, Department):
+                result.extend(c.get_all_employees())
+        return result
+
+
+# ------------------------------------
+# КЛИЕНТСКИЙ КОД
+# ------------------------------------
+if __name__ == "__main__":
+    # Создаём сотрудников
+    emp1 = Employee("Иван", "Разработчик", 120000)
+    emp2 = Employee("Мария", "Тестировщик", 90000)
+    emp3 = Employee("Олег", "Менеджер", 150000)
+
+    contractor1 = Contractor("Сергей", "Дизайн", 80000)
+
+    # Создаём отделы
+    it_department = Department("IT")
+    qa_department = Department("QA")
+    main_department = Department("Главный департамент")
+
+    # Строим иерархию
+    it_department.add(emp1)
+    qa_department.add(emp2)
+    it_department.add(contractor1)
+    main_department.add(emp3)
+    main_department.add(it_department)
+    main_department.add(qa_department)
+
+    # Отображаем структуру
+    print("\n--- Структура организации ---")
+    main_department.show_info()
+
+    # Бюджет
+    print("\nОбщий бюджет:", main_department.get_budget(), "руб.")
+
+    # Штат
+    print("Общее количество сотрудников:", main_department.get_employee_count())
+
+    # Поиск сотрудника
+    print("\n--- Поиск сотрудника 'Мария' ---")
+    found = main_department.find_employee("Мария")
+    if found:
+        found.show_info()
+
+    # Все сотрудники отдела
+    print("\n--- Все сотрудники Главного департамента ---")
+    for e in main_department.get_all_employees():
+        print("-", e.name)
