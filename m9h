@@ -1,0 +1,264 @@
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+// ========================================
+// ЧАСТЬ 1: ПАТТЕРН ФАСАД — ДОМАШНИЙ КИНОТЕАТР
+// ========================================
+
+// Подсистемы мультимедиа
+
+public class TV
+{
+    public void On() => Console.WriteLine("Телевизор включён");
+    public void Off() => Console.WriteLine("Телевизор выключен");
+    public void SetInput(string source) => Console.WriteLine($"Телевизор: вход установлен на {source}");
+}
+
+public class AudioSystem
+{
+    public void On() => Console.WriteLine("Аудиосистема включена");
+    public void Off() => Console.WriteLine("Аудиосистема выключена");
+    public void SetVolume(int level) => Console.WriteLine($"Аудиосистема: громкость установлена на {level}");
+}
+
+public class DVDPlayer
+{
+    public void On() => Console.WriteLine("DVD-проигрыватель включён");
+    public void Off() => Console.WriteLine("DVD-проигрыватель выключен");
+    public void Play(string movie) => Console.WriteLine($"DVD: воспроизведение фильма \"{movie}\"");
+    public void Stop() => Console.WriteLine("DVD: воспроизведение остановлено");
+}
+
+public class GameConsole
+{
+    public void On() => Console.WriteLine("Игровая консоль включена");
+    public void Off() => Console.WriteLine("Игровая консоль выключена");
+    public void StartGame(string game) => Console.WriteLine($"Консоль: запуск игры \"{game}\"");
+}
+
+// ФАСАД — упрощённый интерфейс ко всей системе
+public class HomeTheaterFacade
+{
+    private readonly TV _tv;
+    private readonly AudioSystem _audio;
+    private readonly DVDPlayer _dvd;
+    private readonly GameConsole _console;
+
+    public HomeTheaterFacade(TV tv, AudioSystem audio, DVDPlayer dvd, GameConsole console)
+    {
+        _tv = tv;
+        _audio = audio;
+        _dvd = dvd;
+        _console = console;
+    }
+
+    // Сценарий: просмотр фильма
+    public void WatchMovie(string movie)
+    {
+        Console.WriteLine("\n=== Запуск просмотра фильма ===");
+        _tv.On();
+        _audio.On();
+        _audio.SetVolume(15);
+        _tv.SetInput("HDMI 1");
+        _dvd.On();
+        _dvd.Play(movie);
+    }
+
+    // Сценарий: окончание просмотра
+    public void EndMovie()
+    {
+        Console.WriteLine("\n=== Завершение просмотра ===");
+        _dvd.Stop();
+        _dvd.Off();
+        _audio.Off();
+        _tv.Off();
+    }
+
+    // Сценарий: игра на консоли
+    public void PlayGame(string game)
+    {
+        Console.WriteLine("\n=== Запуск игры ===");
+        _tv.On();
+        _audio.On();
+        _audio.SetVolume(20);
+        _tv.SetInput("HDMI 2");
+        _console.On();
+        _console.StartGame(game);
+    }
+
+    // Сценарий: прослушивание музыки
+    public void ListenToMusic()
+    {
+        Console.WriteLine("\n=== Режим музыки ===");
+        _tv.On();
+        _audio.On();
+        _audio.SetVolume(25);
+        _tv.SetInput("AUX");
+        Console.WriteLine("Музыка играет через аудиосистему...");
+    }
+
+    // Выключение всей системы
+    public void PowerOff()
+    {
+        Console.WriteLine("\n=== Выключение всей системы ===");
+        _dvd.Off();
+        _console.Off();
+        _audio.Off();
+        _tv.Off();
+    }
+}
+
+// ========================================
+// ЧАСТЬ 2: ПАТТЕРН КОМПОНОВЩИК — ФАЙЛОВАЯ СИСТЕМА
+// ========================================
+
+// Общий интерфейс для файлов и папок
+public abstract class FileSystemComponent
+{
+    protected string Name { get; set; }
+
+    protected FileSystemComponent(string name)
+    {
+        Name = name;
+    }
+
+    public abstract void Display(string indent = "");
+    public abstract long GetSize();
+    public abstract void Add(FileSystemComponent component);
+    public abstract void Remove(FileSystemComponent component);
+}
+
+// Лист — Файл
+public class File : FileSystemComponent
+{
+    private readonly long _size;
+
+    public File(string name, long size) : base(name)
+    {
+        _size = size;
+    }
+
+    public override void Display(string indent = "")
+    {
+        Console.WriteLine($"{indent}📄 {Name} ({_size} байт)");
+    }
+
+    public override long GetSize() => _size;
+
+    public override void Add(FileSystemComponent component)
+    {
+        throw new NotSupportedException("Нельзя добавить элемент в файл");
+    }
+
+    public override void Remove(FileSystemComponent component)
+    {
+        throw new NotSupportedException("Нельзя удалить элемент из файла");
+    }
+}
+
+// Компоновщик — Папка
+public class Directory : FileSystemComponent
+{
+    private readonly List<FileSystemComponent> _children = new List<FileSystemComponent>();
+
+    public Directory(string name) : base(name) { }
+
+    public override void Add(FileSystemComponent component)
+    {
+        if (!_children.Contains(component))
+        {
+            _children.Add(component);
+            Console.WriteLine($"Добавлено в папку \"{Name}\": {component.Name}");
+        }
+        else
+        {
+            Console.WriteLine($"Уже существует: {component.Name}");
+        }
+    }
+
+    public override void Remove(FileSystemComponent component)
+    {
+        if (_children.Remove(component))
+            Console.WriteLine($"Удалено из папки \"{Name}\": {component.Name}");
+        else
+            Console.WriteLine($"Не найдено: {component.Name}");
+    }
+
+    public override void Display(string indent = "")
+    {
+        Console.WriteLine($"{indent}📁 {Name}/");
+        foreach (var child in _children)
+        {
+            child.Display(indent + "  ");
+        }
+    }
+
+    public override long GetSize()
+    {
+        long total = 0;
+        foreach (var child in _children)
+        {
+            total += child.GetSize();
+        }
+        return total;
+    }
+}
+
+// ========================================
+// КЛИЕНТСКИЙ КОД — ДЕМОНСТРАЦИЯ
+// ========================================
+class Program
+{
+    static void Main()
+    {
+        Console.WriteLine("=== ПАТТЕРН ФАСАД: ДОМАШНИЙ КИНОТЕАТР ===\n");
+
+        var tv = new TV();
+        var audio = new AudioSystem();
+        var dvd = new DVDPlayer();
+        var console = new GameConsole();
+
+        var homeTheater = new HomeTheaterFacade(tv, audio, dvd, console);
+
+        homeTheater.WatchMovie("Интерстеллар");
+        homeTheater.EndMovie();
+
+        homeTheater.PlayGame("Cyberpunk 2077");
+        homeTheater.PowerOff();
+
+        homeTheater.ListenToMusic();
+        homeTheater.PowerOff();
+
+        Console.WriteLine("\n" + new string('=', 60));
+        Console.WriteLine("=== ПАТТЕРН КОМПОНОВЩИК: ФАЙЛОВАЯ СИСТЕМА ===\n");
+
+        var root = new Directory("root");
+        var home = new Directory("home");
+        var documents = new Directory("Документы");
+        var music = new Directory("Музыка");
+
+        var file1 = new File("photo.jpg", 2_500_000);
+        var file2 = new File("song.mp3", 5_200_000);
+        var file3 = new File("report.docx", 150_000);
+        var file4 = new File("video.mp4", 150_000_000);
+
+        root.Add(home);
+        home.Add(documents);
+        home.Add(music);
+        documents.Add(file1);
+        documents.Add(file3);
+        music.Add(file2);
+        music.Add(file4);
+
+        root.Display();
+        Console.WriteLine($"\nОбщий размер папки root: {root.GetSize() / 1024 / 1024} МБ");
+
+        // Удаление
+        music.Remove(file2);
+        root.Display();
+
+        Console.WriteLine("\nГотово! Оба паттерна работают идеально.");
+        Console.ReadKey();
+    }
+}
