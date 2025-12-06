@@ -1,0 +1,258 @@
+using System;
+using System.Collections.Generic;
+
+// ========================================
+// ЧАСТЬ 1: ПАТТЕРН ДЕКОРАТОР — КАФЕ
+// ========================================
+
+// Базовый интерфейс для всех напитков
+public abstract class Beverage
+{
+    public string Description { get; protected set; } = "Неизвестный напиток";
+    public abstract double Cost();
+}
+
+// Конкретные напитки
+public class Espresso : Beverage
+{
+    public Espresso() => Description = "Эспрессо";
+    public override double Cost() => 80.0;
+}
+
+public class Americano : Beverage
+{
+    public Americano() => Description = "Американо";
+    public override double Cost() => 90.0;
+}
+
+public class Tea : Beverage
+{
+    public Tea() => Description = "Чай";
+    public override double Cost() => 50.0;
+}
+
+public class Latte : Beverage
+{
+    public Latte() => Description = "Латте";
+    public override double Cost() => 120.0;
+}
+
+public class Mocha : Beverage
+{
+    public Mocha() => Description = "Мокко";
+    public override double Cost() => 140.0;
+}
+
+// Абстрактный декоратор
+public abstract class BeverageDecorator : Beverage
+{
+    protected Beverage _beverage;
+
+    protected BeverageDecorator(Beverage beverage)
+    {
+        _beverage = beverage;
+    }
+
+    public override string Description => _beverage.Description;
+    public override double Cost() => _beverage.Cost();
+}
+
+// Конкретные декораторы — добавки
+public class Milk : BeverageDecorator
+{
+    public Milk(Beverage beverage) : base(beverage) { }
+
+    public override string Description => _beverage.Description + " + Молоко";
+    public override double Cost() => _beverage.Cost() + 30.0;
+}
+
+public class Sugar : BeverageDecorator
+{
+    public Sugar(Beverage beverage) : base(beverage) { }
+
+    public override string Description => _beverage.Description + " + Сахар";
+    public override double Cost() => _beverage.Cost() + 10.0;
+}
+
+public class WhippedCream : BeverageDecorator
+{
+    public WhippedCream(Beverage beverage) : base(beverage) { }
+
+    public override string Description => _beverage.Description + " + Взбитые сливки";
+    public override double Cost() => _beverage.Cost() + 40.0;
+}
+
+public class CaramelSyrup : BeverageDecorator
+{
+    public CaramelSyrup(Beverage beverage) : base(beverage) { }
+
+    public override string Description => _beverage.Description + " + Карамельный сироп";
+    public override double Cost() => _beverage.Cost() + 35.0;
+}
+
+public class VanillaSyrup : BeverageDecorator
+{
+    public VanillaSyrup(Beverage beverage) : base(beverage) { }
+
+    public override string Description => _beverage.Description + " + Ванильный сироп";
+    public override double Cost() => _beverage.Cost() + 35.0;
+}
+
+public class Cinnamon : BeverageDecorator
+{
+    public Cinnamon(Beverage beverage) : base(beverage) { }
+
+    public override string Description => _beverage.Description + " + Корица";
+    public override double Cost() => _beverage.Cost() + 20.0;
+}
+
+// ========================================
+// ЧАСТЬ 2: ПАТТЕРН АДАПТЕР — ПЛАТЕЖНЫЕ СИСТЕМЫ
+// ========================================
+
+// Единый интерфейс для всех платежных систем
+public interface IPaymentProcessor
+{
+    bool ProcessPayment(double amount);
+    bool RefundPayment(double amount, string transactionId);
+}
+
+// Существующая система — PayPal
+public class PayPalPaymentProcessor : IPaymentProcessor
+{
+    public bool ProcessPayment(double amount)
+    {
+        Console.WriteLine($"[PayPal] Платёж на сумму {amount:F2} руб. успешно выполнен.");
+        return true;
+    }
+
+    public bool RefundPayment(double amount, string transactionId)
+    {
+        Console.WriteLine($"[PayPal] Возврат {amount:F2} руб. по транзакции {transactionId} выполнен.");
+        return true;
+    }
+}
+
+// Сторонняя система — Stripe
+public class StripePaymentService
+{
+    public string MakeTransaction(double totalAmount)
+    {
+        Console.WriteLine($"[Stripe] Транзакция на сумму {totalAmount:F2} руб. создана.");
+        return "stripe_txn_" + Guid.NewGuid().ToString("N").Substring(0, 10);
+    }
+
+    public void ReverseTransaction(string chargeId)
+    {
+        Console.WriteLine($"[Stripe] Транзакция {chargeId} отменена.");
+    }
+}
+
+// Сторонняя система — Qiwi
+public class QiwiPaymentGateway
+{
+    public void SendMoney(decimal sum, string phone)
+    {
+        Console.WriteLine($"[Qiwi] Перевод {sum:F2} руб. на номер {phone} выполнен.");
+    }
+
+    public void CancelPayment(string paymentId)
+    {
+        Console.WriteLine($"[Qiwi] Платёж {paymentId} отменён.");
+    }
+}
+
+// Адаптер для Stripe
+public class StripePaymentAdapter : IPaymentProcessor
+{
+    private readonly StripePaymentService _stripe = new StripePaymentService();
+    private string _lastTransactionId = "";
+
+    public bool ProcessPayment(double amount)
+    {
+        _lastTransactionId = _stripe.MakeTransaction(amount);
+        return !string.IsNullOrEmpty(_lastTransactionId);
+    }
+
+    public bool RefundPayment(double amount, string transactionId)
+    {
+        _stripe.ReverseTransaction(_lastTransactionId);
+        return true;
+    }
+}
+
+// Адаптер для Qiwi
+public class QiwiPaymentAdapter : IPaymentProcessor
+{
+    private readonly QiwiPaymentGateway _qiwi = new QiwiPaymentGateway();
+    private readonly string _phone = "+79991234567";
+
+    public bool ProcessPayment(double amount)
+    {
+        _qiwi.SendMoney((decimal)amount, _phone);
+        return true;
+    }
+
+    public bool RefundPayment(double amount, string transactionId)
+    {
+        _qiwi.CancelPayment("qiwi_refund_" + DateTime.Now.Ticks);
+        return true;
+    }
+}
+
+// ========================================
+// КЛИЕНТСКИЙ КОД — ДЕМОНСТРАЦИЯ
+// ========================================
+class Program
+{
+    static void Main()
+    {
+        Console.WriteLine("=== ПАТТЕРН ДЕКОРАТОР: СИСТЕМА ЗАКАЗОВ В КАФЕ ===\n");
+
+        // Заказ 1: Латте с молоком, карамелью и взбитыми сливками
+        Beverage order1 = new Latte();
+        order1 = new Milk(order1);
+        order1 = new CaramelSyrup(order1);
+        order1 = new WhippedCream(order1);
+
+        Console.WriteLine($"Напиток: {order1.Description}");
+        Console.WriteLine($"Стоимость: {order1.Cost():F2} руб.\n");
+
+        // Заказ 2: Эспрессо с двойным сахаром и корицей
+        Beverage order2 = new Espresso();
+        order2 = new Sugar(order2);
+        order2 = new Sugar(order2);
+        order2 = new Cinnamon(order2);
+
+        Console.WriteLine($"Напиток: {order2.Description}");
+        Console.WriteLine($"Стоимость: {order2.Cost():F2} руб.\n");
+
+        // Заказ 3: Мокко с ванилью и молоком
+        Beverage order3 = new Mocha();
+        order3 = new VanillaSyrup(order3);
+        order3 = new Milk(order3);
+
+        Console.WriteLine($"Напиток: {order3.Description}");
+        Console.WriteLine($"Стоимость: {order3.Cost():F2} руб.\n");
+
+        Console.WriteLine("=== ПАТТЕРН АДАПТЕР: ПЛАТЕЖНЫЕ СИСТЕМЫ ===\n");
+
+        List<IPaymentProcessor> processors = new List<IPaymentProcessor>
+        {
+            new PayPalPaymentProcessor(),
+            new StripePaymentAdapter(),
+            new QiwiPaymentAdapter()
+        };
+
+        foreach (var processor in processors)
+        {
+            Console.WriteLine($"Используется: {processor.GetType().Name}");
+            processor.ProcessPayment(999.0);
+            processor.RefundPayment(999.0, "test_txn_001");
+            Console.WriteLine();
+        }
+
+        Console.WriteLine("Готово! Оба паттерна работают идеально.");
+        Console.ReadKey();
+    }
+}
